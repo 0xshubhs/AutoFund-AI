@@ -29,3 +29,19 @@ AutoFund AI is an execution-heavy concept: a one-person hedge fund agent that co
 npm install
 npm run dev
 ```
+
+## Backend API Scaffold
+
+- `POST /api/autofund/rebalance`
+  - Fetches:
+    - `/currency/market-snapshot`
+    - `/index/market-snapshot`
+    - `/currency/sector-spotlight`
+  - Computes default allocation and returns execution payload.
+
+## Environment
+
+```bash
+SOSO_API_KEY=your_key_here
+SOSO_BASE_URL=https://openapi.sosovalue.com/openapi/v1
+```
