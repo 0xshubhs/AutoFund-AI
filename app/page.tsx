@@ -1,77 +1,74 @@
-export default function Home() {
-  const riskProfiles = [
-    { label: "LOW", allocation: "60% BTC / 30% ETH / 10% Stable", rebalance: "24h" },
-    { label: "MID", allocation: "45% BTC / 35% ETH / 20% Alts", rebalance: "12h" },
-    { label: "DEGEN", allocation: "25% BTC / 30% ETH / 45% Momentum", rebalance: "4h" },
-  ];
+import AutoFundLayout from "./components/AutoFundLayout";
 
-  const pipeline = [
-    "SoSoValue Index + Sector + Snapshot",
-    "AI Strategy Engine scores trend + volatility",
-    "Portfolio decision and target weights",
-    "SoDEX order execution and live rebalance",
+export default function Home() {
+  const recentActions = [
+    "Bought ETH (+4%) because AI sector momentum accelerated",
+    "Reduced BTC (-3%) after macro risk score rose",
+    "Added stable reserve (+2%) as volatility guard",
   ];
 
   return (
-    <div className="min-h-screen bg-black text-white font-sans">
-      <main className="mx-auto grid max-w-6xl gap-5 px-6 py-10 md:grid-cols-2">
-        <section className="border border-emerald-500/70 bg-zinc-950 p-6 shadow-[0_0_24px_rgba(16,185,129,0.2)] md:col-span-2">
-          <p className="mb-2 text-xs tracking-[0.35em] text-emerald-400">AUTOFUND AI</p>
-          <h1 className="mb-4 text-4xl font-bold leading-tight md:text-5xl">
-            One-Person Hedge Fund Agent
-          </h1>
-          <p className="max-w-3xl text-zinc-300">
-            Autonomous portfolio manager that reads SoSoValue market data, makes strategy
-            decisions, and executes rebalancing trades on SoDEX.
-          </p>
-        </section>
-
-        <section className="border border-emerald-600/70 bg-zinc-950 p-5">
-          <h2 className="mb-4 text-lg font-semibold text-emerald-300">Signal → Execution Flow</h2>
-          <div className="grid gap-3">
-            {pipeline.map((item, index) => (
-              <div key={item} className="border border-zinc-700 bg-black p-3">
-                <p className="text-xs text-emerald-400">STEP {index + 1}</p>
-                <p className="text-sm text-zinc-200">{item}</p>
-              </div>
-            ))}
+    <AutoFundLayout
+      title="Dashboard"
+      subtitle="What the autonomous fund manager is doing right now"
+    >
+      <section className="border border-emerald-500/60 bg-zinc-950 p-5">
+        <h2 className="mb-4 text-lg font-semibold text-emerald-300">Portfolio Summary</h2>
+        <div className="grid gap-3 text-sm">
+          <div className="border border-zinc-700 bg-black p-3">
+            <p className="text-zinc-400">Total Value</p>
+            <p className="text-2xl font-semibold">$1,184.22</p>
           </div>
-        </section>
-
-        <section className="border border-emerald-600/70 bg-zinc-950 p-5">
-          <h2 className="mb-4 text-lg font-semibold text-emerald-300">Risk Profiles</h2>
-          <div className="grid gap-3">
-            {riskProfiles.map((profile) => (
-              <div key={profile.label} className="border border-zinc-700 bg-black p-3">
-                <div className="mb-1 text-sm font-semibold text-white">{profile.label}</div>
-                <div className="text-sm text-zinc-300">{profile.allocation}</div>
-                <div className="text-xs text-emerald-400">Rebalance: {profile.rebalance}</div>
-              </div>
-            ))}
+          <div className="border border-zinc-700 bg-black p-3">
+            <p className="text-zinc-400">PnL</p>
+            <p className="text-emerald-400">24h: +3.8% | Total: +18.4%</p>
           </div>
-        </section>
-
-        <section className="border border-emerald-600/70 bg-zinc-950 p-5">
-          <h2 className="mb-3 text-lg font-semibold text-emerald-300">Live Demo Story</h2>
-          <ul className="space-y-2 text-sm text-zinc-200">
-            <li>Start with $1000 virtual capital in MID mode.</li>
-            <li>Detect sudden sector momentum shift from SoSoValue snapshot.</li>
-            <li>Generate new target weights with rationale.</li>
-            <li>Execute rebalancing orders via SoDEX and show updated PnL.</li>
-          </ul>
-        </section>
-
-        <section className="border border-emerald-600/70 bg-zinc-950 p-5">
-          <h2 className="mb-3 text-lg font-semibold text-emerald-300">Explainability Panel</h2>
-          <div className="border border-emerald-500/60 bg-black p-4 text-sm">
-            <p className="mb-2 text-emerald-400">Why this trade?</p>
-            <p className="text-zinc-200">
-              ETH weight increased because ETF inflow trend stayed positive for 3 cycles while BTC
-              dominance weakened and volatility remained within selected MID risk tolerance.
-            </p>
+          <div className="border border-zinc-700 bg-black p-3">
+            <p className="text-zinc-400">Active Strategy</p>
+            <p>MID risk · AI Dynamic</p>
           </div>
-        </section>
-      </main>
-    </div>
+        </div>
+      </section>
+
+      <section className="border border-emerald-500/60 bg-zinc-950 p-5">
+        <h2 className="mb-4 text-lg font-semibold text-emerald-300">Asset Allocation</h2>
+        <div className="space-y-3 text-sm">
+          <div className="border border-zinc-700 bg-black p-3">BTC 42% · ETH 33% · SOL 15% · USDC 10%</div>
+          <div className="border border-zinc-700 bg-black p-3">
+            Sector split: L1 55% · AI 22% · DeFi 13% · Stable 10%
+          </div>
+          <div className="border border-zinc-700 bg-black p-3 text-zinc-400">
+            Pie visualization placeholder
+          </div>
+        </div>
+      </section>
+
+      <section className="border border-emerald-500/60 bg-zinc-950 p-5">
+        <h2 className="mb-4 text-lg font-semibold text-emerald-300">Recent AI Actions</h2>
+        <div className="grid gap-3 text-sm">
+          {recentActions.map((action) => (
+            <div key={action} className="border border-zinc-700 bg-black p-3">
+              {action}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="border border-emerald-500/60 bg-zinc-950 p-5">
+        <h2 className="mb-4 text-lg font-semibold text-emerald-300">Performance Chart</h2>
+        <div className="border border-zinc-700 bg-black p-5 text-sm text-zinc-400">
+          Portfolio value over time chart placeholder
+        </div>
+      </section>
+
+      <section className="border border-emerald-500/60 bg-zinc-950 p-5 md:col-span-2">
+        <h2 className="mb-4 text-lg font-semibold text-emerald-300">AI Status Panel</h2>
+        <div className="grid gap-3 text-sm md:grid-cols-3">
+          <div className="border border-zinc-700 bg-black p-3">Agent State: Running</div>
+          <div className="border border-zinc-700 bg-black p-3">Last Rebalance: 14m ago</div>
+          <div className="border border-zinc-700 bg-black p-3">Next Action ETA: 1h 46m</div>
+        </div>
+      </section>
+    </AutoFundLayout>
   );
 }

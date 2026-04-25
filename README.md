@@ -1,4 +1,4 @@
-# AutoFund AI (`soso1`)
+# AutoFund AI 
 
 AutoFund AI is an execution-heavy concept: a one-person hedge fund agent that consumes SoSoValue data and executes rebalancing actions through SoDEX.
 
