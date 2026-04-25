@@ -1,4 +1,5 @@
 import AutoFundLayout from "./components/AutoFundLayout";
+import AutoFundChartCard from "./components/AutoFundChartCard";
 
 export default function Home() {
   const recentActions = [
@@ -37,9 +38,11 @@ export default function Home() {
           <div className="border border-zinc-700 bg-black p-3">
             Sector split: L1 55% · AI 22% · DeFi 13% · Stable 10%
           </div>
-          <div className="border border-zinc-700 bg-black p-3 text-zinc-400">
-            Pie visualization placeholder
-          </div>
+          <AutoFundChartCard
+            title="Allocation Chart"
+            type="donut"
+            note="Asset and sector distribution from current portfolio state."
+          />
         </div>
       </section>
 
@@ -56,9 +59,11 @@ export default function Home() {
 
       <section className="border border-emerald-500/60 bg-zinc-950 p-5">
         <h2 className="mb-4 text-lg font-semibold text-emerald-300">Performance Chart</h2>
-        <div className="border border-zinc-700 bg-black p-5 text-sm text-zinc-400">
-          Portfolio value over time chart placeholder
-        </div>
+        <AutoFundChartCard
+          title="Portfolio Value Chart"
+          type="line"
+          note="Portfolio value over time compared against BTC/ETH benchmark."
+        />
       </section>
 
       <section className="border border-emerald-500/60 bg-zinc-950 p-5 md:col-span-2">

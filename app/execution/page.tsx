@@ -1,4 +1,5 @@
 import AutoFundLayout from "../components/AutoFundLayout";
+import AutoFundChartCard from "../components/AutoFundChartCard";
 
 export default function ExecutionPage() {
   return (
@@ -37,6 +38,15 @@ export default function ExecutionPage() {
           <div className="border border-zinc-700 bg-black p-3">ETH slippage: 0.14%</div>
           <div className="border border-zinc-700 bg-black p-3">BTC slippage: 0.08%</div>
         </div>
+      </section>
+
+      <section className="border border-emerald-500/60 bg-zinc-950 p-5 md:col-span-2">
+        <h2 className="mb-3 text-lg font-semibold text-emerald-300">Trade Execution Chart</h2>
+        <AutoFundChartCard
+          title="Execution Candlestick"
+          type="candlestick"
+          note="Use /currency/historical-klines to show executed entry vs current price."
+        />
       </section>
     </AutoFundLayout>
   );

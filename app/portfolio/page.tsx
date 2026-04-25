@@ -1,4 +1,5 @@
 import AutoFundLayout from "../components/AutoFundLayout";
+import AutoFundChartCard from "../components/AutoFundChartCard";
 
 export default function PortfolioPage() {
   return (
@@ -55,6 +56,15 @@ export default function PortfolioPage() {
             15:02 UTC · Reduced BTC -3% · Reason: macro risk
           </div>
         </div>
+      </section>
+
+      <section className="border border-emerald-500/60 bg-zinc-950 p-5 md:col-span-2">
+        <h2 className="mb-3 text-lg font-semibold text-emerald-300">Performance Comparison</h2>
+        <AutoFundChartCard
+          title="Portfolio vs BTC vs Index"
+          type="multiline"
+          note="Use /currency/historical-klines + /index/historical-klines for benchmark lines."
+        />
       </section>
     </AutoFundLayout>
   );
