@@ -2,38 +2,41 @@ import AutoFundLayout from "../components/AutoFundLayout";
 
 export default function StrategyPage() {
   return (
-    <AutoFundLayout title="Strategy Setup" subtitle="Define how the agent behaves">
+    <AutoFundLayout title="Strategy Lab" subtitle="Simulate and configure adaptive AI strategies">
       <section className="border border-emerald-500/60 bg-zinc-950 p-5">
-        <h2 className="mb-3 text-lg font-semibold text-emerald-300">Risk Selector</h2>
+        <h2 className="mb-3 text-lg font-semibold text-emerald-300">Risk Regime</h2>
         <div className="grid gap-2 text-sm md:grid-cols-3">
-          <div className="border border-zinc-700 bg-black p-3">Low</div>
+          <div className="border border-zinc-700 bg-black p-3">Conservative</div>
           <div className="border border-emerald-500 bg-black p-3">Medium (selected)</div>
-          <div className="border border-zinc-700 bg-black p-3">High</div>
+          <div className="border border-zinc-700 bg-black p-3">Aggressive</div>
         </div>
       </section>
 
       <section className="border border-emerald-500/60 bg-zinc-950 p-5">
-        <h2 className="mb-3 text-lg font-semibold text-emerald-300">Strategy Type</h2>
+        <h2 className="mb-3 text-lg font-semibold text-emerald-300">Multi-Strategy Engine</h2>
         <div className="grid gap-2 text-sm">
-          <div className="border border-zinc-700 bg-black p-3">Index tracking</div>
-          <div className="border border-zinc-700 bg-black p-3">Momentum</div>
-          <div className="border border-emerald-500 bg-black p-3">AI dynamic (selected)</div>
+          <div className="border border-zinc-700 bg-black p-3">Momentum strategy</div>
+          <div className="border border-zinc-700 bg-black p-3">Index tracking strategy</div>
+          <div className="border border-zinc-700 bg-black p-3">News-based allocation strategy</div>
+          <div className="border border-emerald-500 bg-black p-3">AI strategy selector (active)</div>
         </div>
       </section>
 
       <section className="border border-emerald-500/60 bg-zinc-950 p-5">
-        <h2 className="mb-3 text-lg font-semibold text-emerald-300">Constraints</h2>
+        <h2 className="mb-3 text-lg font-semibold text-emerald-300">Constraints and Limits</h2>
         <div className="grid gap-2 text-sm">
           <div className="border border-zinc-700 bg-black p-3">Max allocation per asset: 45%</div>
-          <div className="border border-zinc-700 bg-black p-3">Stablecoin reserve: 10%</div>
+          <div className="border border-zinc-700 bg-black p-3">Stable reserve floor: 12%</div>
+          <div className="border border-zinc-700 bg-black p-3">Max sector exposure: 55%</div>
         </div>
       </section>
 
       <section className="border border-emerald-500/60 bg-zinc-950 p-5">
-        <h2 className="mb-3 text-lg font-semibold text-emerald-300">Execution Settings</h2>
+        <h2 className="mb-3 text-lg font-semibold text-emerald-300">Adaptive Rebalancing</h2>
         <div className="grid gap-2 text-sm">
-          <div className="border border-zinc-700 bg-black p-3">Rebalance frequency: 12 hours</div>
-          <div className="border border-zinc-700 bg-black p-3">Execution mode: Auto approval</div>
+          <div className="border border-zinc-700 bg-black p-3">Trigger: market move {'>'} 2.5%</div>
+          <div className="border border-zinc-700 bg-black p-3">Trigger: macro event proximity {'<'} 4h</div>
+          <div className="border border-zinc-700 bg-black p-3">Execution mode: AI auto approval</div>
         </div>
       </section>
 

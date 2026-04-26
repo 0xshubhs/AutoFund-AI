@@ -3,7 +3,7 @@ import AutoFundChartCard from "../components/AutoFundChartCard";
 
 export default function PortfolioPage() {
   return (
-    <AutoFundLayout title="Portfolio Deep Dive" subtitle="Transparency into holdings and changes">
+    <AutoFundLayout title="Portfolio" subtitle="Holdings, changes, and benchmarked performance">
       <section className="border border-emerald-500/60 bg-zinc-950 p-5 md:col-span-2">
         <h2 className="mb-3 text-lg font-semibold text-emerald-300">Holdings Table</h2>
         <div className="overflow-x-auto border border-zinc-700 bg-black text-sm">
@@ -63,7 +63,25 @@ export default function PortfolioPage() {
         <AutoFundChartCard
           title="Portfolio vs BTC vs Index"
           type="multiline"
-          note="Use /currency/historical-klines + /index/historical-klines for benchmark lines."
+          note="Fund returns compared against market beta and index benchmark."
+        />
+      </section>
+
+      <section className="border border-emerald-500/60 bg-zinc-950 p-5">
+        <h2 className="mb-3 text-lg font-semibold text-emerald-300">Allocation Evolution</h2>
+        <AutoFundChartCard
+          title="Sector Rotation"
+          type="stacked-area"
+          note="Shows adaptive capital rotation by strategy and sector."
+        />
+      </section>
+
+      <section className="border border-emerald-500/60 bg-zinc-950 p-5">
+        <h2 className="mb-3 text-lg font-semibold text-emerald-300">Risk Drawdown</h2>
+        <AutoFundChartCard
+          title="Max Drawdown Trend"
+          type="drawdown"
+          note="Highlights stress windows and capital protection response."
         />
       </section>
     </AutoFundLayout>

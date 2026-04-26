@@ -43,9 +43,9 @@ export default function ExecutionPage() {
       <section className="border border-emerald-500/60 bg-zinc-950 p-5 md:col-span-2">
         <h2 className="mb-3 text-lg font-semibold text-emerald-300">Trade Execution Chart</h2>
         <AutoFundChartCard
-          title="Execution Candlestick"
+          title="Candles with Buy/Sell Markers"
           type="candlestick"
-          note="Use /currency/historical-klines to show executed entry vs current price."
+          note="Shows execution points overlaid on price structure for auditability."
         />
       </section>
     </AutoFundLayout>
