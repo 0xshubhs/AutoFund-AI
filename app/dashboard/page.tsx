@@ -10,6 +10,27 @@ export default function DashboardPage() {
 
   return (
     <AutoFundLayout title="Fund Control Center" subtitle="Execution + intelligence + risk in one view">
+      <section className="border border-zinc-800 bg-[#141414] p-5 md:col-span-2">
+        <div className="grid gap-3 text-sm md:grid-cols-4">
+          <div className="border border-zinc-700 bg-black p-3">
+            <p className="text-zinc-500">Net Asset Value</p>
+            <p className="text-xl font-semibold">$1.28M</p>
+          </div>
+          <div className="border border-zinc-700 bg-black p-3">
+            <p className="text-zinc-500">Alpha vs Index</p>
+            <p className="text-xl font-semibold text-emerald-400">+9.7%</p>
+          </div>
+          <div className="border border-zinc-700 bg-black p-3">
+            <p className="text-zinc-500">Risk Regime</p>
+            <p className="text-xl font-semibold">Moderate</p>
+          </div>
+          <div className="border border-zinc-700 bg-black p-3">
+            <p className="text-zinc-500">Execution Uptime</p>
+            <p className="text-xl font-semibold">99.3%</p>
+          </div>
+        </div>
+      </section>
+
       <section className="border border-emerald-500/60 bg-zinc-950 p-5">
         <h2 className="mb-4 text-lg font-semibold text-emerald-300">Portfolio Snapshot</h2>
         <div className="grid gap-3 text-sm">

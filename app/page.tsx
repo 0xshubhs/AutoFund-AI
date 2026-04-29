@@ -54,6 +54,25 @@ export default function Home() {
             <p className="mt-2 text-sm">Every trade ships with reasons, signals, and confidence.</p>
           </div>
         </section>
+
+        <section className="grid w-full gap-3 md:grid-cols-4">
+          <div className="border border-zinc-800 bg-[#141414] p-4 text-left">
+            <p className="text-xs text-zinc-500">Strategies Active</p>
+            <p className="mt-1 text-xl font-semibold text-emerald-300">3</p>
+          </div>
+          <div className="border border-zinc-800 bg-[#141414] p-4 text-left">
+            <p className="text-xs text-zinc-500">Risk Models</p>
+            <p className="mt-1 text-xl font-semibold text-emerald-300">5</p>
+          </div>
+          <div className="border border-zinc-800 bg-[#141414] p-4 text-left">
+            <p className="text-xs text-zinc-500">Decisions Logged</p>
+            <p className="mt-1 text-xl font-semibold text-emerald-300">1,248</p>
+          </div>
+          <div className="border border-zinc-800 bg-[#141414] p-4 text-left">
+            <p className="text-xs text-zinc-500">Execution Latency</p>
+            <p className="mt-1 text-xl font-semibold text-emerald-300">142ms</p>
+          </div>
+        </section>
       </div>
     </div>
   );
