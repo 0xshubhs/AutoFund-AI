@@ -1,79 +1,39 @@
 import Link from "next/link";
+import Dither from "./components/Dither";
 
 export default function Home() {
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-black px-5 text-white">
-      <div className="pointer-events-none absolute right-8 top-16 hidden border border-zinc-800 bg-[#141414] p-4 text-xs text-zinc-400 md:block">
-        LIVE STRATEGY
+    <main className="relative min-h-screen bg-black text-white">
+      <div className="absolute inset-0">
+        <Dither
+          waveColor={[0.2, 0.85, 0.45]}
+          disableAnimation={false}
+          enableMouseInteraction
+          mouseRadius={0.5}
+          colorNum={4}
+          waveAmplitude={0.52}
+          waveFrequency={4.2}
+          waveSpeed={0.16}
+        />
       </div>
-      <div className="pointer-events-none absolute bottom-16 left-8 hidden border border-zinc-800 bg-[#141414] p-4 text-xs text-zinc-400 md:block">
-        RISK ENGINE ACTIVE
-      </div>
-      <div className="w-full max-w-5xl space-y-6 text-center">
-        <section className="relative border border-zinc-800 bg-[#141414] px-8 py-12 md:px-14 md:py-16">
-          <span className="absolute left-0 top-0 h-4 w-4 border-l-2 border-t-2 border-emerald-400" />
-          <span className="absolute right-0 top-0 h-4 w-4 border-r-2 border-t-2 border-emerald-400" />
-          <span className="absolute bottom-0 left-0 h-4 w-4 border-b-2 border-l-2 border-emerald-400" />
-          <span className="absolute bottom-0 right-0 h-4 w-4 border-b-2 border-r-2 border-emerald-400" />
-          <p className="text-xs tracking-[0.35em] text-emerald-400">AUTOFUND AI</p>
-          <h1 className="mt-3 text-3xl font-semibold md:text-5xl">
-            Adaptive On-Chain Fund + Risk Engine
-          </h1>
-          <p className="mx-auto mt-3 max-w-3xl text-sm text-zinc-300">
-            Live execution plus explainable AI. The system rotates between momentum, index, and
-            news-aware strategies, adjusts risk in real time, and routes trades to execution.
+      <div className="absolute inset-0 bg-black/55" />
+      <section className="flex min-h-screen items-center justify-center px-6 py-12">
+        <div className="relative z-10 mx-auto max-w-4xl text-center">
+          <h1 className="text-6xl font-black tracking-[0.12em] text-white sm:text-8xl">AutoFund AI</h1>
+          <p className="mx-auto mt-6 max-w-3xl text-base font-medium leading-8 text-gray-300 sm:text-xl">
+            Adaptive fund intelligence with strategy switching, execution telemetry, and real-time
+            risk controls.
           </p>
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-3 text-sm">
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Link
               href="/dashboard"
-              className="relative border border-emerald-500 bg-emerald-500/10 px-6 py-3 font-semibold text-emerald-300"
+              className="relative inline-block bg-[#22c55e] px-8 py-4 text-base font-bold text-black transition duration-150 hover:bg-[#4ade80]"
             >
-              <span className="absolute left-0 top-0 h-3 w-3 border-l-2 border-t-2 border-white" />
-              <span className="absolute right-0 top-0 h-3 w-3 border-r-2 border-t-2 border-white" />
-              <span className="absolute bottom-0 left-0 h-3 w-3 border-b-2 border-l-2 border-white" />
-              <span className="absolute bottom-0 right-0 h-3 w-3 border-b-2 border-r-2 border-white" />
-              Open Fund Control Center
-            </Link>
-            <Link href="/strategy" className="border border-zinc-700 bg-black px-4 py-2 text-zinc-300">
-              Enter Strategy Lab
+              Go To Dashboard
             </Link>
           </div>
-        </section>
-
-        <section className="grid w-full gap-3 text-left md:grid-cols-3">
-          <div className="border border-zinc-800 bg-[#141414] p-4">
-            <p className="text-xs text-zinc-400">Multi-Strategy Engine</p>
-            <p className="mt-2 text-sm">AI activates the best regime from momentum, index, and news.</p>
-          </div>
-          <div className="border border-zinc-800 bg-[#141414] p-4">
-            <p className="text-xs text-zinc-400">Risk Engine</p>
-            <p className="mt-2 text-sm">Volatility, drawdown, and exposure caps auto-protect capital.</p>
-          </div>
-          <div className="border border-zinc-800 bg-[#141414] p-4">
-            <p className="text-xs text-zinc-400">Explainable Actions</p>
-            <p className="mt-2 text-sm">Every trade ships with reasons, signals, and confidence.</p>
-          </div>
-        </section>
-
-        <section className="grid w-full gap-3 md:grid-cols-4">
-          <div className="border border-zinc-800 bg-[#141414] p-4 text-left">
-            <p className="text-xs text-zinc-500">Strategies Active</p>
-            <p className="mt-1 text-xl font-semibold text-emerald-300">3</p>
-          </div>
-          <div className="border border-zinc-800 bg-[#141414] p-4 text-left">
-            <p className="text-xs text-zinc-500">Risk Models</p>
-            <p className="mt-1 text-xl font-semibold text-emerald-300">5</p>
-          </div>
-          <div className="border border-zinc-800 bg-[#141414] p-4 text-left">
-            <p className="text-xs text-zinc-500">Decisions Logged</p>
-            <p className="mt-1 text-xl font-semibold text-emerald-300">1,248</p>
-          </div>
-          <div className="border border-zinc-800 bg-[#141414] p-4 text-left">
-            <p className="text-xs text-zinc-500">Execution Latency</p>
-            <p className="mt-1 text-xl font-semibold text-emerald-300">142ms</p>
-          </div>
-        </section>
-      </div>
-    </div>
+        </div>
+      </section>
+    </main>
   );
 }
