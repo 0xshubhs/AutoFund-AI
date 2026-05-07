@@ -4,6 +4,7 @@ import AutoFundChartCard from "../components/AutoFundChartCard";
 import AutoFundLayout from "../components/AutoFundLayout";
 import ChartPanel from "../components/ChartPanel";
 import KPICard from "../components/KPICard";
+import SectorHeatmap from "../components/SectorHeatmap";
 import StatusDot from "../components/StatusDot";
 import { formatPct, formatUSD, useLiveData } from "@/lib/useLiveData";
 import type {
@@ -71,6 +72,8 @@ export default function DashboardPage() {
           />
         </div>
       </section>
+
+      <SectorHeatmap />
 
       <ChartPanel
         title="Portfolio vs Market"

@@ -4,6 +4,7 @@ import AutoFundChartCard from "../components/AutoFundChartCard";
 import AutoFundLayout from "../components/AutoFundLayout";
 import ChartPanel from "../components/ChartPanel";
 import KPICard from "../components/KPICard";
+import PlaceOrderButton from "../components/PlaceOrderButton";
 import StatusDot from "../components/StatusDot";
 import { formatUSD, useLiveData } from "@/lib/useLiveData";
 import type { Order, SeriesPoint } from "@/lib/types";
@@ -35,6 +36,8 @@ export default function ExecutionPage() {
 
   return (
     <AutoFundLayout title="Execution Monitor" subtitle="SoDEX order flow and execution quality">
+      <PlaceOrderButton />
+
       <section className="border border-zinc-800 bg-[#0a0a0a]/85 p-4 md:col-span-2">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-emerald-300">Execution Quality</h2>

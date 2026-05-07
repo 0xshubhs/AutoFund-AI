@@ -4,6 +4,7 @@ import AutoFundChartCard from "../components/AutoFundChartCard";
 import AutoFundLayout from "../components/AutoFundLayout";
 import ChartPanel from "../components/ChartPanel";
 import CopilotPanel from "../components/CopilotPanel";
+import NewsFeed from "../components/NewsFeed";
 import StatusDot from "../components/StatusDot";
 import { useLiveData } from "@/lib/useLiveData";
 import type { Decision, RiskBreakdown } from "@/lib/types";
@@ -23,6 +24,8 @@ export default function ReasoningPage() {
   return (
     <AutoFundLayout title="AI Decisions" subtitle="Explainable actions with signals and confidence">
       <CopilotPanel />
+
+      <NewsFeed />
 
       <section className="border border-zinc-800 bg-[#0a0a0a]/85 p-4 md:col-span-2">
         <div className="mb-3 flex items-center justify-between">

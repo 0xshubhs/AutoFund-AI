@@ -64,13 +64,14 @@ This is the data spine of the product. SoSoValue API access is wired through `li
 
 ### Endpoints currently integrated
 
-| SoSoValue Endpoint | HTTP | Purpose in AutoFund AI | Code path |
-| --- | --- | --- | --- |
-| `/openapi/v1/currency/market-snapshot` | `GET` | Live spot prices and 24h change for the universe (BTC, ETH, SOL, AI basket constituents). Drives momentum scoring and the multi-line chart. | `lib/sosovalue.ts::getMarketSnapshot()` |
-| `/openapi/v1/index/market-snapshot` | `GET` | SSI Protocol on-chain index quotes — used as the benchmark in the *Portfolio vs Market* comparison and as input to the index-tracking strategy. | `lib/sosovalue.ts::getIndexMarketSnapshot()` |
-| `/openapi/v1/currency/sector-spotlight` | `GET` | Sector rotation signals (AI / DeFi / L1 / stable). Feeds the stacked-area allocation chart and the strategy router's sector tilt. | `lib/sosovalue.ts::getSectorSpotlight()` |
+| SoSoValue Endpoint | HTTP | Purpose in AutoFund AI | UI panel | Code path |
+| --- | --- | --- | --- | --- |
+| `/openapi/v1/currency/market-snapshot` | `GET` | Live spot prices and 24h change for the universe (BTC, ETH, SOL, AI basket constituents). Drives momentum scoring and the multi-line chart. | Dashboard *Portfolio vs Market* | `lib/sosovalue.ts::getMarketSnapshot()` |
+| `/openapi/v1/index/market-snapshot` | `GET` | SSI Protocol on-chain index quotes — used as the benchmark in the *Portfolio vs Market* comparison and as input to the index-tracking strategy. | Dashboard, Strategy Lab | `lib/sosovalue.ts::getIndexMarketSnapshot()` |
+| `/openapi/v1/currency/sector-spotlight` | `GET` | Sector rotation signals (L1 / AI / DeFi / L2 / Memes / Stables). Renders directly as a 6-tile heatmap on the dashboard and feeds the strategy router's sector tilt. | Dashboard *SoSoValue Sector Spotlight* heatmap | `lib/sosovalue.ts::getSectorSpotlight()` |
+| `/openapi/v1/news/list` (configurable via `SOSO_NEWS_PATH`) | `GET` | Headlines + sentiment + conviction scores feeding the agent's reasoning. Highlights the news that justified the latest decision. | Reasoning *SoSoValue News Feed* | `lib/sosovalue.ts::getNews()` |
 
-All three are fan-out fetched in parallel via `Promise.all` inside `lib/autofund.ts::buildRebalanceDecision()` and exposed downstream by `POST /api/autofund/rebalance`.
+All endpoints are fan-out fetched and exposed downstream by typed route handlers. The market / index / sector triad is consumed by `lib/autofund.ts::buildRebalanceDecision()` and surfaced via `POST /api/autofund/rebalance`. Each public-facing route also has a deterministic mock fallback so the demo never goes blank if a key is rate-limited or unset — the response `source` field always tells the user whether they're seeing live or fallback data.
 
 ### Integration pattern
 
@@ -112,9 +113,14 @@ export async function buildRebalanceDecision() {
 
 ## 4. SoDEX integration
 
-The execution layer scaffolds SoDEX order routing through `executeSodexOrdersFromAllocation()` (`lib/autofund.ts`). The function accepts a target allocation and is structured to plug in EIP-712 signing for live order submission. The Execution Monitor page (`/execution`) renders the order table, fill rate, slippage, and ack latency the same way a real SoDEX flow would surface them — current orders are emitted by the internal mock so the panels stay populated without a live key.
+The execution layer is wired end-to-end through `lib/sodex.ts` and exposed via `POST /api/autofund/sodex-order`. The route constructs a real EIP-712 typed-data envelope for the SoDEX orderbook and:
 
-**Wave 2/3 plan:** swap the placeholder `executeSodexOrdersFromAllocation` for SoDEX testnet `newOrder` submissions, then promote to mainnet once the buildathon-whitelist key lands.
+- **Live mode** (`SODEX_API_KEY` set): POSTs the signed order to `${SODEX_BASE_URL}${SODEX_ORDER_PATH}` (defaults to `https://testnet-api.sodex.com/v1/order/new`).
+- **Dry-run mode** (no key): returns the constructed payload + typed data so the user can verify the integration shape and sign offline. The Execution page renders the typed data inline as proof of correctness.
+
+The Execution Monitor (`/execution`) ships a **Place test order** button that hits this route on click, picks a sensible default order off the current top holding, and shows the response (status, payload, EIP-712 typed data preview) in a side-by-side panel. The remainder of the page (live orders, fill rate, slippage, ack latency) renders the same way a SoDEX flow would surface them.
+
+**Wave 2/3 plan:** add wallet-side EIP-712 signing in the browser (RainbowKit + viem) so the user can sign with their own account, then promote to SoDEX mainnet once the buildathon-whitelist key lands.
 
 ---
 
@@ -124,17 +130,20 @@ The execution layer scaffolds SoDEX order routing through `executeSodexOrdersFro
 - `/` · `/dashboard` · `/strategy` · `/portfolio` · `/reasoning` · `/execution` · `/settings`
 
 ### API surface
-| Route | Method | Purpose |
-| --- | --- | --- |
-| `/api/autofund/rebalance` | POST | Pulls SoSoValue snapshots, computes target allocation, returns decision + execution payload |
-| `/api/autofund/summary` | GET | NAV, alpha (24h / MTD / YTD), risk regime, exposure cap, uptime |
-| `/api/autofund/series` | GET | OHLC-style equity curve for fund vs BTC vs index |
-| `/api/autofund/portfolio` | GET | Holdings table + allocation history (stacked area) |
-| `/api/autofund/risk` | GET | Composite risk score, regime, exposure cap, breakdown (vol / drawdown / liquidity / correlation / macro), drawdown envelope |
-| `/api/autofund/strategy` | GET | Active strategy + score per strategy + rebalance trigger |
-| `/api/autofund/reasoning` | GET | Latest decisions: summary, confidence, signal scores, before/after weights, reasons |
-| `/api/autofund/execution` | GET | Live orders, fill rate, average slippage (bps), average ack latency (ms) |
-| `/api/autofund/health` | GET | Health probe — reports SoSoValue and AI-helper availability |
+| Route | Method | Purpose | SoSoValue / SoDEX endpoint hit |
+| --- | --- | --- | --- |
+| `/api/autofund/rebalance` | POST | Pulls SoSoValue snapshots, computes target allocation, returns decision + execution payload | `currency/market-snapshot`, `index/market-snapshot`, `currency/sector-spotlight` |
+| `/api/autofund/summary` | GET | NAV, alpha (24h / MTD / YTD), risk regime, exposure cap, uptime | — |
+| `/api/autofund/series` | GET | Equity curve for fund vs BTC vs index | — |
+| `/api/autofund/portfolio` | GET | Holdings table + allocation history (stacked area) | — |
+| `/api/autofund/risk` | GET | Composite risk score, regime, exposure cap, breakdown, drawdown envelope | — |
+| `/api/autofund/strategy` | GET | Active strategy + score per strategy + rebalance trigger | — |
+| `/api/autofund/reasoning` | GET | Latest decisions: summary, confidence, signal scores, before/after weights, reasons | — |
+| `/api/autofund/execution` | GET | Live orders, fill rate, average slippage (bps), average ack latency (ms) | — |
+| `/api/autofund/news` | GET | SoSoValue headlines with sentiment + conviction (powers the Reasoning news widget) | `news/list` |
+| `/api/autofund/sectors` | GET | Sector spotlight rotation signals (powers the dashboard heatmap) | `currency/sector-spotlight` |
+| `/api/autofund/sodex-order` | POST | Constructs EIP-712 typed order, submits to SoDEX testnet or returns dry-run | SoDEX `/v1/order/new` |
+| `/api/autofund/health` | GET | Health probe — reports SoSoValue + SoDEX + AI-helper availability | — |
 
 Each JSON response is envelope-wrapped with `{ ok, data, source, generatedAt }` so the UI can show provenance and last-updated state on every panel.
 
@@ -188,9 +197,18 @@ npm run dev
 
 ### Environment variables
 ```bash
-# SoSoValue (required for live data; falls back to mock if absent)
+# SoSoValue (required for live data; falls back to deterministic mock if absent)
 SOSO_API_KEY=your_buildathon_key_here
 SOSO_BASE_URL=https://openapi.sosovalue.com/openapi/v1
+SOSO_NEWS_PATH=/news/list                  # override if the news endpoint moves
+SOSO_SECTOR_PATH=/currency/sector-spotlight
+
+# SoDEX (optional — when absent, /api/autofund/sodex-order returns dry-run payloads)
+SODEX_API_KEY=your_sodex_testnet_key
+SODEX_BASE_URL=https://testnet-api.sodex.com
+SODEX_ORDER_PATH=/v1/order/new
+SODEX_CHAIN_ID=421614                      # SoDEX testnet
+SODEX_VERIFYING_CONTRACT=0x...             # SoDEX exchange contract address
 ```
 
 ### Production build
@@ -205,9 +223,9 @@ npm run start
 
 | Wave | Window | Status | Focus |
 | --- | --- | --- | --- |
-| **Wave 1 — Concept / Prototype** | May 1–12 | **✅ Shipped** | Three SoSoValue endpoints integrated, live dashboard across 6 pages, demo cycle, risk engine UI, reasoning trail, polling architecture, deterministic fallback. |
-| **Wave 2 — Build Phase I** | May 18–29 | 🚧 Planned | Add SoSoValue news + ETF flow ingestion, wire SoDEX testnet `newOrder` for real execution path, Strategy Lab backtest with SoSoValue historical OHLCV, sector spotlight live heatmap on dashboard. |
-| **Wave 3 — Build Phase II** | Jun 4–15 | 🚧 Planned | SoDEX mainnet execution (post-whitelist), publishable SSI-style index from user-defined basket, Sharpe / Sortino / attribution analytics, decision JSON export for audit, mobile responsive pass. |
+| **Wave 1 — Concept / Prototype** | May 1–12 | **✅ Shipped** | Four SoSoValue endpoints integrated (market / index / sector / news), live dashboard across 6 pages, demo cycle, risk engine UI, reasoning trail, polling architecture, deterministic fallback, **SoSoValue Sector Spotlight live heatmap on dashboard**, **SoSoValue News Feed on Reasoning**, **SoDEX testnet `newOrder` route with EIP-712 typed-data + Place test order button on Execution**. |
+| **Wave 2 — Build Phase I** | May 18–29 | 🚧 Planned | Browser-side EIP-712 wallet signing (RainbowKit + viem), Strategy Lab backtest with SoSoValue historical OHLCV, ETF flow ingestion as a fifth signal, mobile responsive pass. |
+| **Wave 3 — Build Phase II** | Jun 4–15 | 🚧 Planned | SoDEX mainnet execution (post-whitelist), publishable SSI-style index from user-defined basket, Sharpe / Sortino / attribution analytics, decision JSON export for audit, multi-account fund management. |
 
 ---
 
@@ -218,7 +236,7 @@ npm run start
 | **User Value & Practical Impact (30%)** | Replaces gatekept fund management with a transparent, autonomous on-chain agent. Every decision is visible, every signal cited, every order auditable. The user can run the entire cycle with one click and inspect six dimensions of the fund's posture. |
 | **Functionality & Working Demo (25%)** | Live dashboard at `npm run dev`, 9 working API routes, end-to-end demo cycle button, six pages all reading polled live data with status indicators. |
 | **Logic, Workflow & Product Design (20%)** | Clear five-step pipeline (Ingest → Decide → Risk-gate → Execute → Explain) reflected one-to-one in the UI. Strategy router scores four strategies; risk engine breaks down five components; reasoning page surfaces signals + confidence + before/after impact. |
-| **Data / API Integration (15%)** | Three SoSoValue endpoints integrated as the data spine — `/currency/market-snapshot`, `/index/market-snapshot`, `/currency/sector-spotlight`. Each maps to specific UI panels. SoDEX execution layer scaffolded for the next wave. |
+| **Data / API Integration (15%)** | Four SoSoValue endpoints integrated as the data spine — `/currency/market-snapshot`, `/index/market-snapshot`, `/currency/sector-spotlight`, `/news/list`. Each maps to a specific UI panel (multi-line chart, benchmark, sector heatmap, news feed). SoDEX `/v1/order/new` is wired end-to-end with EIP-712 typed-data construction and a click-to-submit button. |
 | **UX & Clarity (10%)** | Code-numbered sidebar, corner-bracketed KPI cards, source labels + last-updated timestamps on every panel, consistent typography hierarchy, status dots showing data freshness, single hero CTA (`Run trading cycle`) that demonstrates the full agent loop in seconds. |
 
 ---
@@ -227,8 +245,9 @@ npm run start
 
 - [x] Public GitHub repo: <https://github.com/ayushsingh82/soso1>
 - [x] README with setup instructions (this file)
-- [x] Working live demo (`npm run dev` → 6 pages + 9 API routes)
-- [x] Genuine SoSoValue API integration (`lib/sosovalue.ts` + 3 endpoints)
+- [x] Working live demo (`npm run dev` → 6 pages + 12 API routes)
+- [x] Genuine SoSoValue API integration (`lib/sosovalue.ts` + 4 endpoints feeding 4 dedicated UI panels)
+- [x] SoDEX integration (`lib/sodex.ts` + `/api/autofund/sodex-order` with EIP-712 typed-data)
 - [x] Clear use case (autonomous on-chain fund agent for retail / DAO / quant users)
 - [x] Complete flow from data input to actionable output (signal → decision → risk gate → execution → reasoning)
 - [ ] Demo video (recorded for Wave 1 submission)

@@ -8,6 +8,7 @@ import type {
   SeriesPoint,
   StrategyState,
 } from "./types";
+import type { NewsItem, SectorSpotlightItem } from "./sosovalue";
 
 function mulberry32(seed: number) {
   let s = seed >>> 0;
@@ -238,6 +239,65 @@ export function buildOrders(count = 8): Order[] {
       status,
       slippageBps: round(rand() * 18, 1),
       ackMs: round(80 + rand() * 220, 0),
+    });
+  }
+  return out;
+}
+
+const SECTORS: { sector: string; tokens: string[] }[] = [
+  { sector: "L1", tokens: ["BTC", "ETH", "SOL", "AVAX", "ADA"] },
+  { sector: "AI", tokens: ["FET", "RNDR", "TAO", "AGIX", "WLD"] },
+  { sector: "DeFi", tokens: ["UNI", "AAVE", "MKR", "CRV", "LDO"] },
+  { sector: "L2", tokens: ["ARB", "OP", "MATIC", "STRK"] },
+  { sector: "Memes", tokens: ["DOGE", "PEPE", "WIF", "BONK"] },
+  { sector: "Stables", tokens: ["USDC", "USDT", "DAI"] },
+];
+
+export function buildSectorSpotlight(): SectorSpotlightItem[] {
+  const rand = mulberry32(bucketSeed(MIN_MS));
+  return SECTORS.map((s) => {
+    const change24h = round((rand() - 0.45) * 12, 2);
+    const top = s.tokens[Math.floor(rand() * s.tokens.length)];
+    const bot = s.tokens[Math.floor(rand() * s.tokens.length)];
+    return {
+      sector: s.sector,
+      change24h,
+      marketCap: round(1_500_000_000 + rand() * 80_000_000_000, 0),
+      topGainer: top,
+      topGainerChange: round(Math.abs(change24h) + rand() * 4, 2),
+      topLoser: bot,
+      topLoserChange: round(-Math.abs(change24h) - rand() * 4, 2),
+    };
+  });
+}
+
+const HEADLINES: { title: string; source: string; sentiment: NewsItem["sentiment"]; symbols: string[] }[] = [
+  { title: "Spot BTC ETF inflows hit 5-day streak as macro risk eases", source: "SoSoValue Terminal", sentiment: "bullish", symbols: ["BTC"] },
+  { title: "AI sector beta climbs 8.2% — TAO and RNDR lead the tape", source: "SoSoValue Sectors", sentiment: "bullish", symbols: ["TAO", "RNDR"] },
+  { title: "ETH staking yield compresses as validator queue clears", source: "SoSoValue Terminal", sentiment: "neutral", symbols: ["ETH"] },
+  { title: "FOMC minutes lean dovish — risk assets bid into close", source: "SoSoValue Macro", sentiment: "bullish", symbols: ["BTC", "ETH"] },
+  { title: "Solana DEX volume rotates back above $4B/day", source: "SoSoValue Sectors", sentiment: "bullish", symbols: ["SOL"] },
+  { title: "Stablecoin supply contraction continues — defensive tilt warranted", source: "SoSoValue Terminal", sentiment: "bearish", symbols: ["USDC", "USDT"] },
+  { title: "DeFi TVL diverges from price — quiet capital rotation", source: "SoSoValue Sectors", sentiment: "neutral", symbols: ["AAVE", "UNI"] },
+  { title: "Memecoin volatility spikes — exposure cap auto-tightening", source: "SoSoValue Risk", sentiment: "bearish", symbols: ["PEPE", "WIF"] },
+];
+
+export function buildNews(limit = 8): NewsItem[] {
+  const rand = mulberry32(bucketSeed(HOUR_MS));
+  const now = Date.now();
+  const pool = [...HEADLINES];
+  const out: NewsItem[] = [];
+  for (let i = 0; i < Math.min(limit, pool.length); i++) {
+    const pick = Math.floor(rand() * pool.length);
+    const item = pool.splice(pick, 1)[0];
+    out.push({
+      id: `news_${now - i * 7 * MIN_MS}`,
+      title: item.title,
+      source: item.source,
+      publishedAt: now - i * 7 * MIN_MS,
+      sentiment: item.sentiment,
+      conviction: clamp(round(60 + (rand() - 0.4) * 32, 0), 30, 96),
+      symbols: item.symbols,
     });
   }
   return out;
