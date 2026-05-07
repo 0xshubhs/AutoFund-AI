@@ -1,9 +1,6 @@
 "use client";
 
-/* eslint-disable react/no-unknown-property */
 /* eslint-disable react-hooks/refs */
-/* eslint-disable react-hooks/immutability */
-/* eslint-disable react-hooks/exhaustive-deps */
 import { useRef, useEffect, forwardRef } from "react";
 import { Canvas, useFrame, useThree, ThreeEvent } from "@react-three/fiber";
 import { EffectComposer, wrapEffect } from "@react-three/postprocessing";
