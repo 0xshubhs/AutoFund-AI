@@ -62,6 +62,23 @@ Six pages, all live-data driven:
 
 This is the data spine of the product. SoSoValue API access is wired through `lib/sosovalue.ts` using the `x-soso-api-key` header pattern, and consumed downstream by the strategy / risk / reasoning logic.
 
+### What we used from SoSoValue (at a glance)
+
+| SoSoValue product / feature | What we did with it | Where in the app |
+| --- | --- | --- |
+| **SoSoValue Terminal — news** | Streamed headlines with sentiment + conviction into the agent's reasoning trail | `/reasoning` → SoSoValue News Feed widget |
+| **SoSoValue Sector Spotlight** | Rendered live sector rotation as a 6-tile color-graded heatmap; also feeds the strategy router's sector tilt | `/dashboard` → Sector Spotlight heatmap |
+| **SoSoValue Currency Market Data** | Live spot prices + 24h delta across BTC / ETH / SOL / AI basket; drives momentum scoring + the equity-curve chart | `/dashboard` → Portfolio vs Market multi-line chart |
+| **SSI Protocol — Index Market Snapshot** | On-chain index quotes used as the benchmark and as input to the index-tracking strategy | `/dashboard`, `/strategy` |
+
+### How we called the API
+
+- **Auth**: `x-soso-api-key` header, key from `process.env.SOSO_API_KEY`
+- **Base URL**: `https://openapi.sosovalue.com/openapi/v1` (overridable via `SOSO_BASE_URL`)
+- **Method**: `GET` (all four endpoints), `cache: "no-store"` so every read is fresh
+- **Client**: native `fetch` in `lib/sosovalue.ts`, fan-out via `Promise.all`
+- **Resilience**: every public route has a deterministic mock fallback, and the JSON envelope's `source` field always tells the user whether they're seeing live or fallback data
+
 ### Endpoints currently integrated
 
 | SoSoValue Endpoint | HTTP | Purpose in AutoFund AI | UI panel | Code path |
