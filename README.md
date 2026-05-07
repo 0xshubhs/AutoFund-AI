@@ -34,6 +34,8 @@ Traditional fund managers are gatekeepers: high fees, opaque decisions, slow reb
 
 ## 2. Live demo
 
+**Zero setup. No API keys needed.** The app ships with a deterministic dataset that mirrors SoSoValue's API shape, so `npm run dev` just works.
+
 ```bash
 git clone https://github.com/ayushsingh82/soso1.git
 cd soso1
@@ -203,29 +205,28 @@ soso1/
 
 ### Prerequisites
 - Node.js ≥ 20
-- A SoSoValue API key (request via the [Buildathon access form](https://forms.gle/2nuJT2qNbUQsyyZy8)). Without a key the app still runs against the deterministic fallback.
 
 ### Install & run
 ```bash
 npm install
-cp .env.example .env.local   # then fill in SOSO_API_KEY
 npm run dev
+# → http://localhost:3000
 ```
 
-### Environment variables
-```bash
-# SoSoValue (required for live data; falls back to deterministic mock if absent)
-SOSO_API_KEY=your_buildathon_key_here
-SOSO_BASE_URL=https://openapi.sosovalue.com/openapi/v1
-SOSO_NEWS_PATH=/news/list                  # override if the news endpoint moves
-SOSO_SECTOR_PATH=/currency/sector-spotlight
+That's it. **No `.env`, no API keys, no signup.** Every chart and panel is populated from a deterministic generator that mirrors SoSoValue's API shape so the demo is reproducible across machines.
 
-# SoDEX (optional — when absent, /api/autofund/sodex-order returns dry-run payloads)
-SODEX_API_KEY=your_sodex_testnet_key
+### Optional: plug in real keys later
+
+If you want to swap the deterministic dataset for live SoSoValue / SoDEX calls, set any of these env vars in `.env.local` — every one is optional and falls back to the mock if absent.
+
+```bash
+# SoSoValue (optional — UI is identical with or without)
+SOSO_API_KEY=...
+SOSO_BASE_URL=https://openapi.sosovalue.com/openapi/v1
+
+# SoDEX (optional — POST /api/autofund/sodex-order returns dry-run when unset)
+SODEX_API_KEY=...
 SODEX_BASE_URL=https://testnet-api.sodex.com
-SODEX_ORDER_PATH=/v1/order/new
-SODEX_CHAIN_ID=421614                      # SoDEX testnet
-SODEX_VERIFYING_CONTRACT=0x...             # SoDEX exchange contract address
 ```
 
 ### Production build
