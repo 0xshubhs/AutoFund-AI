@@ -37,6 +37,9 @@ export default function PlaceOrderButton() {
 
   const data = result?.data;
   const isLive = data?.mode === "live";
+  const sideLabel = data?.payload.side === 1 ? "BUY" : data?.payload.side === 2 ? "SELL" : "—";
+  const explorerUrl = data?.mode === "live" ? data.explorerUrl : undefined;
+  const orderId = data?.mode === "live" ? data.orderId : undefined;
 
   return (
     <section className="border border-emerald-500/40 bg-zinc-950/85 p-4 md:col-span-2">
@@ -69,8 +72,8 @@ export default function PlaceOrderButton() {
               <dt className="text-zinc-500">Symbol</dt>
               <dd>{data.payload.symbol}</dd>
               <dt className="text-zinc-500">Side</dt>
-              <dd className={data.payload.side === "BUY" ? "text-emerald-400" : "text-rose-400"}>
-                {data.payload.side}
+              <dd className={sideLabel === "BUY" ? "text-emerald-400" : "text-rose-400"}>
+                {sideLabel}
               </dd>
               <dt className="text-zinc-500">Size</dt>
               <dd>{data.payload.size}</dd>
@@ -83,6 +86,19 @@ export default function PlaceOrderButton() {
                 {result?.ok ? "OK" : "Failed"}
               </dd>
             </dl>
+            {orderId && (
+              <p className="mt-2 font-mono text-[10px] text-emerald-300">order {orderId}</p>
+            )}
+            {explorerUrl && (
+              <a
+                href={explorerUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-1 inline-block text-[10px] text-emerald-400 underline hover:text-emerald-300"
+              >
+                view on explorer ↗
+              </a>
+            )}
             {data.mode === "dry-run" && (
               <p className="mt-2 text-[10px] text-zinc-500">{data.reason}</p>
             )}

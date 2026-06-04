@@ -6,6 +6,7 @@ import ChartPanel from "../components/ChartPanel";
 import StatusDot from "../components/StatusDot";
 import { useLiveData } from "@/lib/useLiveData";
 import type { SeriesPoint, StrategyState } from "@/lib/types";
+import type { SignalVector } from "@/lib/signals";
 
 const STRATEGY_DESCRIPTIONS: Record<string, string> = {
   momentum: "Buys leaders, trims laggards. Wins in trends, loses in chop.",
@@ -14,8 +15,13 @@ const STRATEGY_DESCRIPTIONS: Record<string, string> = {
   balanced: "60/30/10 base mix with risk-parity tilt.",
 };
 
+type StrategyData = StrategyState & {
+  signals?: SignalVector;
+  explanations?: Record<string, string>;
+};
+
 export default function StrategyPage() {
-  const strategy = useLiveData<StrategyState>("/api/autofund/strategy", 7000);
+  const strategy = useLiveData<StrategyData>("/api/autofund/strategy", 7000);
   const series = useLiveData<SeriesPoint[]>("/api/autofund/series?points=48", 8000);
   const state = strategy.data;
   const scoreEntries = state ? (Object.entries(state.scores) as [string, number][]) : [];
@@ -62,7 +68,7 @@ export default function StrategyPage() {
                       />
                     </div>
                     <p className="mt-1 text-[10px] text-zinc-500">
-                      {STRATEGY_DESCRIPTIONS[name]}
+                      {state.explanations?.[name] ?? STRATEGY_DESCRIPTIONS[name]}
                     </p>
                   </div>
                 );
@@ -71,6 +77,29 @@ export default function StrategyPage() {
           </div>
         )}
       </section>
+
+      {state?.signals && (
+        <section className="border border-zinc-800 bg-zinc-950/80 p-4 md:col-span-2">
+          <h2 className="mb-3 text-sm font-semibold text-emerald-300">
+            Signal Vector{" "}
+            <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-500">
+              · {state.signals.source}
+            </span>
+          </h2>
+          <div className="grid gap-2 md:grid-cols-5">
+            <SignalCell label="Momentum" v={state.signals.momentum} bipolar />
+            <SignalCell label="Sector Tilt" v={state.signals.sectorTilt} bipolar />
+            <SignalCell label="News Conviction" v={state.signals.newsConviction} bipolar />
+            <SignalCell label="ETF Flow" v={state.signals.etfFlow} bipolar />
+            <SignalCell label="Volatility" v={state.signals.volatility} />
+          </div>
+          <p className="mt-3 text-[11px] text-zinc-500">
+            {state.signals.context.topSector} leads (+{state.signals.context.topSectorChange}%) ·
+            ETF complex net {state.signals.context.etfTrend} · scores above are computed from this
+            vector, not random.
+          </p>
+        </section>
+      )}
 
       <section className="border border-zinc-800 bg-zinc-950/80 p-4">
         <h2 className="mb-3 text-sm font-semibold text-emerald-300">Constraints</h2>
@@ -111,6 +140,34 @@ export default function StrategyPage() {
         )}
       </ChartPanel>
     </AutoFundLayout>
+  );
+}
+
+function SignalCell({ label, v, bipolar = false }: { label: string; v: number; bipolar?: boolean }) {
+  // bipolar signals are [-1,1]; volatility is [0,1].
+  const magnitude = bipolar ? Math.abs(v) : v;
+  const positive = !bipolar || v >= 0;
+  const tone = !bipolar
+    ? v > 0.6
+      ? "text-amber-300"
+      : "text-emerald-300"
+    : positive
+      ? "text-emerald-300"
+      : "text-rose-300";
+  return (
+    <div className="border border-zinc-800 bg-black p-3">
+      <p className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</p>
+      <p className={`mt-1 font-mono text-lg font-semibold ${tone}`}>
+        {bipolar && v > 0 ? "+" : ""}
+        {(v * 100).toFixed(0)}
+      </p>
+      <div className="mt-1 h-1.5 w-full bg-zinc-900">
+        <div
+          className={`h-full ${positive ? (!bipolar && v > 0.6 ? "bg-amber-400" : "bg-emerald-400") : "bg-rose-400"}`}
+          style={{ width: `${Math.min(100, magnitude * 100)}%` }}
+        />
+      </div>
+    </div>
   );
 }
 

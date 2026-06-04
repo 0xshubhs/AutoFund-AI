@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { DemoCycleProvider } from "./DemoCycleContext";
 import RunCycleButton from "./RunCycleButton";
 import DemoCyclePanel from "./DemoCyclePanel";
+import OnChainProofStrip from "./OnChainProofStrip";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", code: "01" },
@@ -98,6 +99,9 @@ export default function AutoFundLayout({ title, subtitle, children }: AutoFundLa
                   <p className="text-sm text-zinc-400">{subtitle}</p>
                 </div>
                 <RunCycleButton />
+              </div>
+              <div className="mt-3">
+                <OnChainProofStrip />
               </div>
             </header>
             <main className="mt-4 grid gap-4 md:grid-cols-2">

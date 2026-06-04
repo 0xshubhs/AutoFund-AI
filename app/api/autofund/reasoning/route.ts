@@ -6,15 +6,16 @@ import {
   buildRiskBreakdown,
   buildStrategyState,
 } from "@/lib/mock";
-import { enrichDecisionReasons, hasAI, AI_PROVIDER, type FundContext } from "@/lib/ai";
+import { enrichDecisionReasons, hasAI, probeAI, AI_PROVIDER, type FundContext } from "@/lib/ai";
 
 export const runtime = "nodejs";
 export const revalidate = 0;
 
 export async function GET() {
   const decisions = buildDecisionFeed(6);
+  const aiLive = hasAI() ? await probeAI() : false;
 
-  if (hasAI() && decisions[0]) {
+  if (aiLive && decisions[0]) {
     const summary = buildFundSummary();
     const breakdown = buildRiskBreakdown();
     const ctx: FundContext = {
@@ -36,7 +37,7 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     data: decisions,
-    source: hasAI() ? `internal/reasoning-log + ${AI_PROVIDER.model}` : "internal/reasoning-log",
+    source: aiLive ? `internal/reasoning-log + ${AI_PROVIDER.model}` : "internal/reasoning-log",
     generatedAt: Date.now(),
   });
 }

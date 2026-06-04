@@ -1,20 +1,34 @@
 import { NextResponse } from "next/server";
-import { hasAI, AI_PROVIDER } from "@/lib/ai";
+import { hasAI, probeAI, AI_PROVIDER } from "@/lib/ai";
+import { hasSosoKey, probeSoso } from "@/lib/sosovalue";
+import { hasSodexKey } from "@/lib/sodex";
 
+export const runtime = "nodejs";
 export const revalidate = 0;
 
 export async function GET() {
+  const [aiLive, sosoLive] = await Promise.all([
+    hasAI() ? probeAI() : Promise.resolve(false),
+    hasSosoKey() ? probeSoso() : Promise.resolve(false),
+  ]);
+
   return NextResponse.json({
     ok: true,
     data: {
       ai: {
-        provider: "qwen-vl-runpod",
+        provider: hasAI() ? "openai (configured)" : "none",
         model: AI_PROVIDER.model,
         baseUrl: AI_PROVIDER.baseUrl,
-        live: hasAI(),
+        configured: hasAI(),
+        live: aiLive,
       },
       sosovalue: {
-        live: Boolean(process.env.SOSO_API_KEY),
+        configured: hasSosoKey(),
+        live: sosoLive,
+      },
+      sodex: {
+        configured: hasSodexKey(),
+        mode: hasSodexKey() ? "live (testnet)" : "dry-run",
       },
     },
     source: "internal/health",

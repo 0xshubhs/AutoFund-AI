@@ -1,25 +1,45 @@
 /**
  * SoDEX testnet order builder + submitter.
  *
- * Two modes, decided at request time:
- *   - LIVE: SODEX_BASE_URL + SODEX_API_KEY are set → POST to /v1/order/new
- *           (or whatever path SODEX_ORDER_PATH overrides to)
- *   - DRY-RUN: keys absent → return the constructed EIP-712 typed data + payload
- *              so the UI can show the would-be order without submitting it
+ * Aligned with the buildathon SoDEX reference:
+ *   - Base (testnet): https://testnet-gw.sodex.dev/api/v1/spot
+ *   - ValueChain chainId: TESTNET 138565 / mainnet 286623
+ *   - Signed writes use headers X-API-Key (key name), X-API-Sign (EIP-712
+ *     typed signature PREFIXED with a 0x01 byte), X-API-Nonce (monotonic).
+ *   - EIP-712 domain name "spot"/"futures"; message { payloadHash, nonce }
+ *     where payloadHash = keccak256 of the compact-JSON action (field order
+ *     must match the server's canonical ordering).
+ *   - Enums: side BUY=1/SELL=2, type LIMIT=1/MARKET=2, TIF GTC=1/IOC=3/PostOnly=4.
  *
- * The order shape mirrors SoDEX's documented orderbook flow: {symbol, side,
- * type, size, price, nonce, timestamp} + EIP-712 signature. We don't sign in
- * dry-run because that would require a private key the user hasn't yet
- * provided — we surface the typed-data structure instead so the integration
- * is verifiable.
+ * Two modes, decided at request time:
+ *   - LIVE: SODEX_API_KEY set → POST the signed batch order to the spot endpoint.
+ *   - DRY-RUN: key absent → return the constructed action payload + the EIP-712
+ *     typed data (domain/types/message) so the UI can verify the integration
+ *     shape without a private key.
+ *
+ * HONESTY NOTE: the request/response wrapping, the exact canonical field order
+ * the server hashes, and the signing flow were NOT verified against a live
+ * testnet here (no key was available). The typed-data SHAPE follows the
+ * reference; the live POST path is best-effort and clearly labeled. Browser /
+ * server EIP-712 signing (viem) is deferred to Wave 3.
  */
 
-const SODEX_BASE_URL = process.env.SODEX_BASE_URL ?? "https://testnet-api.sodex.com";
+import { createHash } from "crypto";
+
+const SODEX_BASE_URL = process.env.SODEX_BASE_URL ?? "https://testnet-gw.sodex.dev/api/v1/spot";
 const SODEX_API_KEY = process.env.SODEX_API_KEY;
-const SODEX_ORDER_PATH = process.env.SODEX_ORDER_PATH ?? "/v1/order/new";
-const SODEX_CHAIN_ID = Number(process.env.SODEX_CHAIN_ID ?? 421614); // SoDEX testnet
+// Default spot batch-orders path per reference; overridable.
+const SODEX_ORDER_PATH = process.env.SODEX_ORDER_PATH ?? "/trade/orders/batch";
+const SODEX_CHAIN_ID = Number(process.env.SODEX_CHAIN_ID ?? 138565); // ValueChain testnet
+const SODEX_DOMAIN_NAME = process.env.SODEX_DOMAIN_NAME ?? "spot";
 const SODEX_VERIFYING_CONTRACT =
   process.env.SODEX_VERIFYING_CONTRACT ?? "0x0000000000000000000000000000000000000000";
+const SODEX_EXPLORER =
+  process.env.SODEX_EXPLORER ?? "https://testnet-explorer.valuechain.io"; // best-effort; override per reference
+
+const SIDE_ENUM = { BUY: 1, SELL: 2 } as const;
+const TYPE_LIMIT = 1;
+const TIF_GTC = 1;
 
 export type SodexSide = "BUY" | "SELL";
 
@@ -30,10 +50,13 @@ export type SodexOrderInput = {
   price: number;
 };
 
+// Canonical action the server hashes. Field ORDER is load-bearing for the
+// payloadHash — keep it stable and documented.
 export type SodexOrderPayload = {
   symbol: string;
-  side: SodexSide;
-  type: "LIMIT";
+  side: number; // 1=BUY 2=SELL
+  type: number; // 1=LIMIT
+  tif: number; // 1=GTC
   size: string;
   price: string;
   nonce: string;
@@ -47,11 +70,17 @@ export type SodexTypedData = {
     chainId: number;
     verifyingContract: string;
   };
-  primaryType: "Order";
+  primaryType: "Action";
   types: {
-    Order: { name: string; type: string }[];
+    Action: { name: string; type: string }[];
   };
-  message: SodexOrderPayload;
+  // Per reference the signed message is { payloadHash, nonce }.
+  message: {
+    payloadHash: string;
+    nonce: string;
+  };
+  // We carry the un-hashed action alongside so the UI can show what was hashed.
+  action: SodexOrderPayload;
 };
 
 export type SodexSubmitResult =
@@ -59,6 +88,8 @@ export type SodexSubmitResult =
       mode: "live";
       ok: boolean;
       response: unknown;
+      orderId?: string;
+      explorerUrl?: string;
       payload: SodexOrderPayload;
       typedData: SodexTypedData;
     }
@@ -74,41 +105,65 @@ export function hasSodexKey(): boolean {
   return Boolean(SODEX_API_KEY);
 }
 
+let nonceCounter = 0;
+function nextNonce(): string {
+  // Monotonic per process: ms timestamp with a tie-breaker counter.
+  nonceCounter = (nonceCounter + 1) % 1000;
+  return `${Date.now()}${String(nonceCounter).padStart(3, "0")}`;
+}
+
 export function buildOrderPayload(input: SodexOrderInput): SodexOrderPayload {
-  const now = Date.now();
   return {
     symbol: input.symbol,
-    side: input.side,
-    type: "LIMIT",
+    side: SIDE_ENUM[input.side],
+    type: TYPE_LIMIT,
+    tif: TIF_GTC,
     size: input.size.toString(),
     price: input.price.toString(),
-    nonce: `${now}-${Math.floor(Math.random() * 1e6)}`,
-    timestamp: now,
+    nonce: nextNonce(),
+    timestamp: Date.now(),
   };
+}
+
+// keccak256 isn't in node:crypto; the reference uses keccak256, but without a
+// dependency we use sha256 as a stand-in to demonstrate the hash-then-sign
+// shape. Clearly labeled so we don't overclaim cryptographic equivalence.
+function payloadHash(action: SodexOrderPayload): string {
+  const compact = JSON.stringify(action); // field order preserved by object literal
+  return "0x" + createHash("sha256").update(compact).digest("hex");
 }
 
 export function buildTypedData(payload: SodexOrderPayload): SodexTypedData {
   return {
     domain: {
-      name: "SoDEX",
+      name: SODEX_DOMAIN_NAME,
       version: "1",
       chainId: SODEX_CHAIN_ID,
       verifyingContract: SODEX_VERIFYING_CONTRACT,
     },
-    primaryType: "Order",
+    primaryType: "Action",
     types: {
-      Order: [
-        { name: "symbol", type: "string" },
-        { name: "side", type: "string" },
-        { name: "type", type: "string" },
-        { name: "size", type: "string" },
-        { name: "price", type: "string" },
-        { name: "nonce", type: "string" },
-        { name: "timestamp", type: "uint256" },
+      Action: [
+        { name: "payloadHash", type: "bytes32" },
+        { name: "nonce", type: "uint256" },
       ],
     },
-    message: payload,
+    message: {
+      payloadHash: payloadHash(payload),
+      nonce: payload.nonce,
+    },
+    action: payload,
   };
+}
+
+function extractOrderId(json: unknown): string | undefined {
+  if (json && typeof json === "object") {
+    const o = json as Record<string, unknown>;
+    const data = (o.data ?? o) as Record<string, unknown>;
+    const id = data.orderId ?? data.id ?? (Array.isArray(data) ? undefined : undefined);
+    if (id != null) return String(id);
+  }
+  return undefined;
 }
 
 export async function submitSodexOrder(input: SodexOrderInput): Promise<SodexSubmitResult> {
@@ -119,27 +174,36 @@ export async function submitSodexOrder(input: SodexOrderInput): Promise<SodexSub
     return {
       mode: "dry-run",
       ok: true,
-      reason: "SODEX_API_KEY not set — order constructed but not submitted.",
+      reason:
+        "SODEX_API_KEY not set — order action + EIP-712 typed data constructed but not signed/submitted.",
       payload,
       typedData,
     };
   }
 
   try {
+    // NOTE: a real submission requires the X-API-Sign EIP-712 signature
+    // (0x01-prefixed) produced by the key's private key, which we do not hold
+    // server-side. We send the structured order; if the gateway rejects an
+    // unsigned request that is surfaced honestly in the response.
     const res = await fetch(`${SODEX_BASE_URL}${SODEX_ORDER_PATH}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-sodex-api-key": SODEX_API_KEY!,
+        "X-API-Key": SODEX_API_KEY!,
+        "X-API-Nonce": payload.nonce,
       },
-      body: JSON.stringify({ order: payload, typedData }),
+      body: JSON.stringify({ orders: [payload], typedData }),
       cache: "no-store",
     });
     const json = await res.json().catch(() => ({}));
+    const orderId = extractOrderId(json);
     return {
       mode: "live",
       ok: res.ok,
       response: json,
+      orderId,
+      explorerUrl: orderId ? `${SODEX_EXPLORER}/tx/${orderId}` : undefined,
       payload,
       typedData,
     };

@@ -3,6 +3,7 @@
 import AutoFundChartCard from "../components/AutoFundChartCard";
 import AutoFundLayout from "../components/AutoFundLayout";
 import ChartPanel from "../components/ChartPanel";
+import InstitutionalPanel from "../components/InstitutionalPanel";
 import KPICard from "../components/KPICard";
 import SectorHeatmap from "../components/SectorHeatmap";
 import StatusDot from "../components/StatusDot";
@@ -74,6 +75,8 @@ export default function DashboardPage() {
       </section>
 
       <SectorHeatmap />
+
+      <InstitutionalPanel />
 
       <ChartPanel
         title="Portfolio vs Market"

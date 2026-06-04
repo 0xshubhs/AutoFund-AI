@@ -2,6 +2,7 @@
 
 import AutoFundChartCard from "../components/AutoFundChartCard";
 import AutoFundLayout from "../components/AutoFundLayout";
+import AuditExportButton from "../components/AuditExportButton";
 import ChartPanel from "../components/ChartPanel";
 import CopilotPanel from "../components/CopilotPanel";
 import NewsFeed from "../components/NewsFeed";
@@ -30,11 +31,14 @@ export default function ReasoningPage() {
       <section className="border border-zinc-800 bg-[#0a0a0a]/85 p-4 md:col-span-2">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-emerald-300">Latest Decision</h2>
-          <StatusDot
-            status={decisions.status}
-            updatedAt={decisions.updatedAt}
-            source={decisions.source}
-          />
+          <div className="flex items-center gap-3">
+            <AuditExportButton />
+            <StatusDot
+              status={decisions.status}
+              updatedAt={decisions.updatedAt}
+              source={decisions.source}
+            />
+          </div>
         </div>
         {latest ? (
           <div className="grid gap-3 lg:grid-cols-[1.4fr_1fr]">

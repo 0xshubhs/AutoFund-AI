@@ -4,6 +4,7 @@ import AutoFundChartCard from "../components/AutoFundChartCard";
 import AutoFundLayout from "../components/AutoFundLayout";
 import ChartPanel from "../components/ChartPanel";
 import KPICard from "../components/KPICard";
+import RiskGatePanel from "../components/RiskGatePanel";
 import StatusDot from "../components/StatusDot";
 import { useLiveData } from "@/lib/useLiveData";
 import type { RiskBreakdown, SeriesPoint } from "@/lib/types";
@@ -52,6 +53,8 @@ export default function SettingsPage() {
           <KPICard label="Mode" value="Adaptive" hint="auto with override" />
         </div>
       </section>
+
+      <RiskGatePanel />
 
       <section className="border border-zinc-800 bg-zinc-950/80 p-4">
         <h2 className="mb-3 text-sm font-semibold text-emerald-300">Protection Rules</h2>

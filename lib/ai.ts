@@ -1,15 +1,47 @@
+import OpenAI from "openai";
 import type { Decision, FundSummary, Holding, RiskBreakdown, StrategyState } from "./types";
 
-const AI_BASE_URL = "https://0ziii4vt975sjd-8000.proxy.runpod.net";
-const AI_MODEL = "Qwen/Qwen3-VL-8B-Instruct";
+// AI copilot powered by OpenAI Chat Completions. Configurable via env so we
+// never ship a hardcoded key or host. With no OPENAI_API_KEY set the module
+// degrades to a deterministic heuristic — the zero-config demo still works.
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY ?? "";
+const OPENAI_MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
+// Optional base-url override (e.g. an OpenAI-compatible gateway). Trivial pass-
+// through; left undefined → the SDK uses the real OpenAI endpoint.
+const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || undefined;
 
 export const AI_PROVIDER = {
-  baseUrl: AI_BASE_URL,
-  model: AI_MODEL,
+  baseUrl: OPENAI_BASE_URL ?? "https://api.openai.com/v1",
+  model: OPENAI_MODEL,
 };
 
+let client: OpenAI | null = null;
+function getClient(): OpenAI | null {
+  if (!OPENAI_API_KEY) return null;
+  if (!client) {
+    client = new OpenAI({ apiKey: OPENAI_API_KEY, baseURL: OPENAI_BASE_URL });
+  }
+  return client;
+}
+
+/**
+ * Config check: is OpenAI actually configured? Cheap, synchronous. Returns
+ * false when OPENAI_API_KEY is unset, which keeps routes in heuristic mode
+ * rather than pretending an endpoint exists. `source` labels rely on this so
+ * we never claim "AI live" without a key.
+ */
 export function hasAI(): boolean {
-  return true;
+  return Boolean(OPENAI_API_KEY);
+}
+
+/**
+ * Reachability/config check. To avoid spending tokens on every health check we
+ * do NOT call the chat endpoint here — a configured key is treated as "ready".
+ * (A token-free `models.list()` ping is possible but unnecessary and adds
+ * latency to every /health hit; presence of a key is the honest signal.)
+ */
+export async function probeAI(): Promise<boolean> {
+  return hasAI();
 }
 
 const SYSTEM_PROMPT = `You are AutoFund AI's analyst copilot — a reasoning agent embedded in an adaptive on-chain crypto fund.
@@ -58,82 +90,41 @@ function renderState(ctx: FundContext): string {
   ].join("\n");
 }
 
-type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
-
-type ChatOpts = {
-  stream?: boolean;
-  max_tokens?: number;
-  temperature?: number;
-  signal?: AbortSignal;
-};
-
-async function chatRequest(messages: ChatMessage[], opts: ChatOpts): Promise<Response> {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    Accept: opts.stream ? "text/event-stream" : "application/json",
-  };
-
-  const res = await fetch(`${AI_BASE_URL}/v1/chat/completions`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      model: AI_MODEL,
-      messages,
-      stream: opts.stream ?? false,
-      max_tokens: opts.max_tokens ?? 512,
-      temperature: opts.temperature ?? 0.4,
-    }),
-    signal: opts.signal,
-    cache: "no-store",
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`AI ${res.status}: ${text.slice(0, 200)}`);
-  }
-  return res;
-}
-
-async function* parseSSEStream(body: ReadableStream<Uint8Array>): AsyncGenerator<string> {
-  const reader = body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    let nl;
-    while ((nl = buffer.indexOf("\n")) !== -1) {
-      const line = buffer.slice(0, nl).trim();
-      buffer = buffer.slice(nl + 1);
-      if (!line.startsWith("data:")) continue;
-      const payload = line.slice(5).trim();
-      if (!payload || payload === "[DONE]") continue;
-      try {
-        const json = JSON.parse(payload);
-        const delta = json.choices?.[0]?.delta?.content;
-        if (typeof delta === "string" && delta.length > 0) yield delta;
-      } catch {
-        // ignore malformed chunks
-      }
-    }
-  }
-}
-
+/**
+ * Streaming copilot answer. Streams plain-text deltas from OpenAI; on any error
+ * (or no key) yields a clearly-labeled fallback note + the heuristic answer.
+ */
 export async function* streamCopilotAnswer(
   question: string,
   ctx: FundContext,
   signal?: AbortSignal,
 ): AsyncIterable<string> {
+  const oai = getClient();
+  if (!oai) {
+    yield* heuristicAnswer(question, ctx);
+    return;
+  }
   try {
-    const res = await chatRequest(
-      [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: `Current fund state:\n${renderState(ctx)}\n\nOperator question: ${question}` },
-      ],
-      { stream: true, max_tokens: 600, temperature: 0.45, signal },
+    const stream = await oai.chat.completions.create(
+      {
+        model: OPENAI_MODEL,
+        stream: true,
+        temperature: 0.45,
+        max_tokens: 600,
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          {
+            role: "user",
+            content: `Current fund state:\n${renderState(ctx)}\n\nOperator question: ${question}`,
+          },
+        ],
+      },
+      { signal },
     );
-    if (!res.body) throw new Error("No response body");
-    yield* parseSSEStream(res.body);
+    for await (const chunk of stream) {
+      const delta = chunk.choices?.[0]?.delta?.content;
+      if (typeof delta === "string" && delta.length > 0) yield delta;
+    }
   } catch (err) {
     const msg = err instanceof Error ? err.message : "stream failed";
     yield `[AI fallback: ${msg}]\n`;
@@ -155,28 +146,45 @@ function* heuristicAnswer(question: string, ctx: FundContext): Generator<string>
 const reasonCache = new Map<string, string[]>();
 const REASON_CACHE_MAX = 64;
 
+/**
+ * Enriches a decision's reason bullets via OpenAI, requesting structured JSON
+ * output (response_format json_object) so the shape is predictable. Falls back
+ * to the decision's own deterministic reasons on any error or with no key.
+ */
 export async function enrichDecisionReasons(decision: Decision, ctx: FundContext): Promise<string[]> {
   const cached = reasonCache.get(decision.id);
   if (cached) return cached;
 
+  const oai = getClient();
+  if (!oai) return decision.reasons;
+
   try {
-    const res = await chatRequest(
-      [
+    const completion = await oai.chat.completions.create({
+      model: OPENAI_MODEL,
+      temperature: 0.35,
+      max_tokens: 320,
+      response_format: { type: "json_object" },
+      messages: [
         { role: "system", content: SYSTEM_PROMPT },
         {
           role: "user",
-          content: `Current fund state:\n${renderState(ctx)}\n\nThe agent just made this decision: "${decision.summary}" (confidence ${decision.confidence}%). Signal scores: ${decision.signals.map((s) => `${s.label} ${s.score}`).join(", ")}.\n\nReturn 2 to 3 short reason bullets (one sentence each, NO bullet character) explaining WHY this decision makes sense given the signals and regime. Output ONLY the lines, one per line, no preamble.`,
+          content: `Current fund state:\n${renderState(ctx)}\n\nThe agent just made this decision: "${decision.summary}" (confidence ${decision.confidence}%). Signal scores: ${decision.signals.map((s) => `${s.label} ${s.score}`).join(", ")}.\n\nReturn JSON of the form {"reasons": string[], "confidence": number} where reasons is 2-3 short one-sentence bullets (NO bullet characters) explaining WHY this decision makes sense given the signals and regime, and confidence is your 0-100 assessment.`,
         },
       ],
-      { stream: false, max_tokens: 280, temperature: 0.35 },
-    );
-    const json = await res.json();
-    const text: string = json.choices?.[0]?.message?.content ?? "";
-    const reasons = text
-      .split("\n")
-      .map((l: string) => l.replace(/^[-•·*\d.)\s]+/, "").trim())
-      .filter(Boolean)
-      .slice(0, 3);
+    });
+    const text: string = completion.choices?.[0]?.message?.content ?? "";
+    let reasons: string[] = [];
+    try {
+      const parsed = JSON.parse(text) as { reasons?: unknown };
+      if (Array.isArray(parsed.reasons)) {
+        reasons = parsed.reasons
+          .map((r) => String(r).replace(/^[-•·*\d.)\s]+/, "").trim())
+          .filter(Boolean)
+          .slice(0, 3);
+      }
+    } catch {
+      // model ignored json_object — fall through to deterministic reasons
+    }
     if (reasons.length === 0) return decision.reasons;
 
     if (reasonCache.size >= REASON_CACHE_MAX) {

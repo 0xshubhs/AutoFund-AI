@@ -8,7 +8,8 @@ import type {
   SeriesPoint,
   StrategyState,
 } from "./types";
-import type { NewsItem, SectorSpotlightItem } from "./sosovalue";
+import type { EtfFlowPoint, MarketSnapshot, NewsItem, SectorSpotlightItem } from "./sosovalue";
+import type { StrategyScores } from "./signals";
 
 function mulberry32(seed: number) {
   let s = seed >>> 0;
@@ -140,14 +141,22 @@ export function buildRiskBreakdown(): RiskBreakdown {
   };
 }
 
-export function buildStrategyState(): StrategyState {
+/**
+ * Strategy state. When `scores` are supplied (computed by the signal model in
+ * lib/signals.ts) they drive the active-strategy selection; otherwise a
+ * deterministic time-bucketed fallback keeps the demo coherent with no key.
+ */
+export function buildStrategyState(scores?: StrategyScores): StrategyState {
   const summary = buildFundSummary();
-  const rand = mulberry32(bucketSeed(HOUR_MS));
-  const momentum = clamp(round(70 + (rand() - 0.5) * 24, 0), 25, 96);
-  const index = clamp(round(55 + (rand() - 0.5) * 18, 0), 25, 88);
-  const news = clamp(round(48 + (rand() - 0.5) * 24, 0), 18, 92);
-  const balanced = clamp(round(60 + (rand() - 0.5) * 14, 0), 35, 85);
-  const scores = { momentum, index, news, balanced };
+  if (!scores) {
+    const rand = mulberry32(bucketSeed(HOUR_MS));
+    scores = {
+      momentum: clamp(round(70 + (rand() - 0.5) * 24, 0), 25, 96),
+      index: clamp(round(55 + (rand() - 0.5) * 18, 0), 25, 88),
+      news: clamp(round(48 + (rand() - 0.5) * 24, 0), 18, 92),
+      balanced: clamp(round(60 + (rand() - 0.5) * 14, 0), 35, 85),
+    };
+  }
   const active = (Object.entries(scores).sort((a, b) => b[1] - a[1])[0][0]) as StrategyState["active"];
   return {
     active,
@@ -269,6 +278,47 @@ export function buildSectorSpotlight(): SectorSpotlightItem[] {
       topLoserChange: round(-Math.abs(change24h) - rand() * 4, 2),
     };
   });
+}
+
+const UNIVERSE = ["BTC", "ETH", "SOL", "AVAX", "ARB", "OP", "FET", "RNDR", "TAO", "LINK"];
+
+/**
+ * Deterministic market snapshot mirroring SoSoValue's currency/market-snapshot
+ * shape. Re-seeds every minute so the signal model produces a live-feeling,
+ * reproducible 24h-delta vector in the zero-config demo.
+ */
+export function deterministicMarketSnapshot(): MarketSnapshot[] {
+  const rand = mulberry32(bucketSeed(MIN_MS));
+  const basePrice: Record<string, number> = {
+    BTC: 62000, ETH: 3050, SOL: 142, AVAX: 34, ARB: 0.85,
+    OP: 1.9, FET: 1.3, RNDR: 7.4, TAO: 410, LINK: 14.5,
+  };
+  return UNIVERSE.map((symbol) => {
+    const change24h = round((rand() - 0.42) * 12, 2);
+    const price = round((basePrice[symbol] ?? 10) * (1 + change24h / 100), basePrice[symbol] < 10 ? 4 : 2);
+    return { symbol, price, change24h };
+  });
+}
+
+/**
+ * Deterministic ETF net-flow history mirroring /etfs/summary-history. Negative
+ * totalNetInflow = net outflow, matching SoSoValue semantics.
+ */
+export function deterministicEtfFlows(days = 14): EtfFlowPoint[] {
+  const rand = mulberry32(bucketSeed(HOUR_MS));
+  const out: EtfFlowPoint[] = [];
+  let cum = 0;
+  for (let i = days - 1; i >= 0; i--) {
+    const flow = round((rand() - 0.4) * 700_000_000, 0); // ±~$700M/day, slight inflow bias
+    cum += flow;
+    const ts = Date.now() - i * 86_400_000;
+    out.push({
+      date: new Date(ts).toISOString().slice(0, 10),
+      totalNetInflow: flow,
+      cumNetInflow: cum,
+    });
+  }
+  return out;
 }
 
 const HEADLINES: { title: string; source: string; sentiment: NewsItem["sentiment"]; symbols: string[] }[] = [

@@ -6,7 +6,7 @@ import {
   buildRiskBreakdown,
   buildStrategyState,
 } from "@/lib/mock";
-import { hasAI, streamCopilotAnswer, AI_PROVIDER, type FundContext } from "@/lib/ai";
+import { hasAI, probeAI, streamCopilotAnswer, AI_PROVIDER, type FundContext } from "@/lib/ai";
 
 export const runtime = "nodejs";
 export const revalidate = 0;
@@ -42,6 +42,8 @@ export async function POST(request: Request) {
     latestDecision: buildDecisionFeed(1)[0] ?? null,
   };
 
+  const aiLive = hasAI() ? await probeAI() : false;
+
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -62,7 +64,7 @@ export async function POST(request: Request) {
     headers: {
       "Content-Type": "text/plain; charset=utf-8",
       "Cache-Control": "no-store",
-      "X-Copilot-Mode": hasAI() ? "ai" : "heuristic",
+      "X-Copilot-Mode": aiLive ? "ai" : "heuristic",
       "X-Copilot-Model": AI_PROVIDER.model,
     },
   });
