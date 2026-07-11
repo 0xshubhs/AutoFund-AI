@@ -9,21 +9,17 @@ import type { Decision, FundSummary, Holding, RiskBreakdown, StrategyState } fro
 // the endpoint can be repointed (RunPod proxy URLs are ephemeral) or swapped
 // for OpenAI proper. If the endpoint is unreachable the module degrades to a
 // deterministic heuristic, so the app never hard-fails on a dead pod.
-const DEFAULT_BASE_URL = "https://j197d3s4gy3ijy-8002.proxy.runpod.net/v1";
-const DEFAULT_MODEL = "Qwen/Qwen3-VL-8B-Instruct";
-
-const AI_BASE_URL = process.env.OPENAI_BASE_URL || process.env.AI_BASE_URL || DEFAULT_BASE_URL;
-const AI_MODEL = process.env.OPENAI_MODEL || process.env.AI_MODEL || DEFAULT_MODEL;
-// The vLLM/RunPod endpoint ignores the key; keep a non-empty sentinel so the
-// SDK constructs a client. Override with a real key when pointing at OpenAI.
-const AI_API_KEY = process.env.OPENAI_API_KEY || process.env.AI_API_KEY || "runpod-local";
-
-const IS_HOSTED = AI_BASE_URL !== "https://api.openai.com/v1";
+// Hardcoded, single AI provider: the self-hosted vLLM server running
+// Qwen/Qwen3-VL-8B-Instruct. No env, no OpenAI — this endpoint only.
+const AI_BASE_URL = "https://j197d3s4gy3ijy-8002.proxy.runpod.net/v1";
+const AI_MODEL = "Qwen/Qwen3-VL-8B-Instruct";
+// The vLLM endpoint ignores the key; a non-empty sentinel lets the client build.
+const AI_API_KEY = "runpod-local";
 
 export const AI_PROVIDER = {
   baseUrl: AI_BASE_URL,
   model: AI_MODEL,
-  label: IS_HOSTED ? `vLLM · ${AI_MODEL}` : `openai · ${AI_MODEL}`,
+  label: `vLLM · ${AI_MODEL}`,
 };
 
 let client: OpenAI | null = null;
