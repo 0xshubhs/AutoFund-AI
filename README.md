@@ -39,8 +39,8 @@ Traditional fund managers are gatekeepers: high fees, opaque decisions, slow reb
 > **Wave 3 — AI is live by default.** The copilot, decision-reason enrichment, and the new **AI Desk Brief** (`/dashboard`) run on a *real* model out of the box — a self-hosted vLLM server running `Qwen/Qwen3-VL-8B-Instruct` via an OpenAI-compatible endpoint (`lib/ai.ts`), no key required. Override the endpoint/model with `OPENAI_BASE_URL` / `OPENAI_MODEL` / `OPENAI_API_KEY` (RunPod proxy URLs are ephemeral). If the endpoint is unreachable, every AI path degrades gracefully to a deterministic heuristic. See `WAVE3.md`.
 
 ```bash
-git clone https://github.com/ayushsingh82/soso1.git
-cd soso1
+git clone https://github.com/0xshubhs/AutoFund-AI.git
+cd AutoFund-AI
 npm install
 npm run dev
 # open http://localhost:3000
@@ -173,7 +173,7 @@ Each JSON response is envelope-wrapped with `{ ok, data, source, generatedAt }` 
 ## 6. Architecture
 
 ```
-soso1/
+AutoFund-AI/
 ├── app/
 │   ├── (dashboard pages)
 │   ├── api/autofund/         9 typed JSON routes
@@ -263,7 +263,7 @@ npm run start
 
 ## 10. Submission checklist
 
-- [x] Public GitHub repo: <https://github.com/ayushsingh82/soso1>
+- [x] Public GitHub repo: <https://github.com/0xshubhs/AutoFund-AI>
 - [x] README with setup instructions (this file)
 - [x] Working live demo (`npm run dev` → 6 pages + 12 API routes)
 - [x] Genuine SoSoValue API integration (`lib/sosovalue.ts` + 4 endpoints feeding 4 dedicated UI panels)
