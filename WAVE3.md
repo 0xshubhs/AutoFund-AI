@@ -1,27 +1,47 @@
-# Wave 3 — SHIPPED so far
+# Wave 3 — SHIPPED (changelog)
 
-**Live AI, zero-config.** The copilot, decision-reason enrichment, and a new AI
-Desk Brief now run on a *real model out of the box* — a self-hosted vLLM server
-running `Qwen/Qwen3-VL-8B-Instruct` behind an OpenAI-compatible endpoint
-(`lib/ai.ts`). No key required for the demo. Everything is env-overridable
-(`OPENAI_BASE_URL` / `OPENAI_MODEL` / `OPENAI_API_KEY`, or the `AI_*` aliases) so
-the endpoint can be repointed or swapped for OpenAI proper.
+This wave took AutoFund from a mock-data, heuristic-AI prototype to a **live,
+self-contained on-chain fund agent**: real SoSoValue market data + a real AI
+model reasoning over it, running with zero configuration.
 
-- **Real liveness probe.** `probeAI()` now pings the model server's `/models`
-  endpoint (short timeout, 15s cache) so the "live" flag on `/health` and the
-  `X-Copilot-Mode` header reflect whether the pod is actually up — not just that
-  a URL is configured. If the endpoint is down, every AI path degrades to the
-  deterministic heuristic, so the app never hard-fails.
-- **NEW — AI Desk Brief.** `/api/autofund/brief` generates a live 2-3 sentence
-  opening note on the fund's posture, top risk/opportunity, and next move, from
-  the current fund state. Cached server-side (~90s) and surfaced as a card on
-  `/dashboard`. Verified end-to-end against the live model.
-- **Health transparency.** `/api/autofund/health` reports the active provider
-  label + model + base URL + real liveness.
+## 1. Live SoSoValue API integration (was mock-by-default)
+`lib/sosovalue.ts` was rewritten against the **verified** SoSoValue OpenAPI v1.
+The Wave 2 paths were never validated and were wrong; they now hit the real
+endpoints and normalize the live `{ code, message, data }` snake_case responses
+(24h change is a fraction → converted to %):
+- `/currencies/{id}/market-snapshot` (with a cached symbol→`currency_id` map) —
+  live BTC / ETH / SOL prices + 24h change on the dashboard benchmark row.
+- `/currencies/sector-spotlight` — live sector heatmap.
+- `/news` (`page_size`, `data.list`) — live news feed with real sources.
+- `/etfs/summary-history` (`symbol` + `country_code`) — live BTC spot-ETF net
+  inflow / outflow, feeding the signal model.
+- `/indices/{ticker}/market-snapshot` — live SSI MAG7 index level.
 
-Verified live: `X-Copilot-Mode: ai`, briefs grounded in the fund's real numbers.
-Ephemeral-endpoint caveat: RunPod proxy URLs rotate — set `OPENAI_BASE_URL` to
-the current endpoint (or an OpenAI key) for a permanent deployment.
+**Rate discipline:** a server-side TTL cache (60–300s) sits in front of every
+call so the dashboards' polling stays within the Demo plan's 10 req/min & 10k/mo
+limits. Verified end-to-end: `source` labels read `SoSoValue/...`, health shows
+`sosovalue.live: true`, real 2026 ETF-flow figures render.
+
+## 2. Live AI reasoning — Qwen only (was heuristic-by-default)
+The copilot, decision-reason enrichment, and the new Desk Brief run on a real
+model out of the box: a self-hosted **vLLM server running
+`Qwen/Qwen3-VL-8B-Instruct`** (`lib/ai.ts`). A `/models` liveness probe (cached)
+makes the `/health` `live` flag and `X-Copilot-Mode` header honest; if the
+endpoint is down, every AI path degrades to a deterministic heuristic so the app
+never hard-fails.
+
+## 3. NEW — AI Desk Brief
+`/api/autofund/brief` generates a live 2–3 sentence opening note on the fund's
+posture, top risk/opportunity, and next move from the current state. Cached
+server-side (~90s) and surfaced as a card on `/dashboard`.
+
+## 4. Zero-config, push-to-deploy
+The SoSoValue key and the Qwen endpoint are **hardcoded**, so the app runs live
+on Vercel with no environment variables. AI is the Qwen endpoint only (no
+OpenAI/other provider). Health reports the active provider + real liveness.
+
+_(Demo-key note: the hardcoded SoSoValue key is a Demo-plan key — 10k calls/mo,
+no funds — intended for the judged demo.)_
 
 ---
 
