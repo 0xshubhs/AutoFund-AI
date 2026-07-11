@@ -1,47 +1,78 @@
 import OpenAI from "openai";
 import type { Decision, FundSummary, Holding, RiskBreakdown, StrategyState } from "./types";
 
-// AI copilot powered by OpenAI Chat Completions. Configurable via env so we
-// never ship a hardcoded key or host. With no OPENAI_API_KEY set the module
-// degrades to a deterministic heuristic — the zero-config demo still works.
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY ?? "";
-const OPENAI_MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
-// Optional base-url override (e.g. an OpenAI-compatible gateway). Trivial pass-
-// through; left undefined → the SDK uses the real OpenAI endpoint.
-const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || undefined;
+// AI copilot powered by an OpenAI-compatible Chat Completions endpoint.
+//
+// Wave 3 ships a LIVE default: a self-hosted vLLM server running
+// Qwen/Qwen3-VL-8B-Instruct behind a RunPod proxy. No key required — the demo
+// reasons with a real model out of the box. Everything is env-overridable so
+// the endpoint can be repointed (RunPod proxy URLs are ephemeral) or swapped
+// for OpenAI proper. If the endpoint is unreachable the module degrades to a
+// deterministic heuristic, so the app never hard-fails on a dead pod.
+const DEFAULT_BASE_URL = "https://j197d3s4gy3ijy-8002.proxy.runpod.net/v1";
+const DEFAULT_MODEL = "Qwen/Qwen3-VL-8B-Instruct";
+
+const AI_BASE_URL = process.env.OPENAI_BASE_URL || process.env.AI_BASE_URL || DEFAULT_BASE_URL;
+const AI_MODEL = process.env.OPENAI_MODEL || process.env.AI_MODEL || DEFAULT_MODEL;
+// The vLLM/RunPod endpoint ignores the key; keep a non-empty sentinel so the
+// SDK constructs a client. Override with a real key when pointing at OpenAI.
+const AI_API_KEY = process.env.OPENAI_API_KEY || process.env.AI_API_KEY || "runpod-local";
+
+const IS_HOSTED = AI_BASE_URL !== "https://api.openai.com/v1";
 
 export const AI_PROVIDER = {
-  baseUrl: OPENAI_BASE_URL ?? "https://api.openai.com/v1",
-  model: OPENAI_MODEL,
+  baseUrl: AI_BASE_URL,
+  model: AI_MODEL,
+  label: IS_HOSTED ? `vLLM · ${AI_MODEL}` : `openai · ${AI_MODEL}`,
 };
 
 let client: OpenAI | null = null;
 function getClient(): OpenAI | null {
-  if (!OPENAI_API_KEY) return null;
+  if (!AI_API_KEY) return null;
   if (!client) {
-    client = new OpenAI({ apiKey: OPENAI_API_KEY, baseURL: OPENAI_BASE_URL });
+    client = new OpenAI({ apiKey: AI_API_KEY, baseURL: AI_BASE_URL });
   }
   return client;
 }
 
 /**
- * Config check: is OpenAI actually configured? Cheap, synchronous. Returns
- * false when OPENAI_API_KEY is unset, which keeps routes in heuristic mode
- * rather than pretending an endpoint exists. `source` labels rely on this so
- * we never claim "AI live" without a key.
+ * Config check: is an AI endpoint wired at all? With the Wave 3 baked-in
+ * default this is always true — liveness (is the pod actually up?) is answered
+ * separately by probeAI().
  */
 export function hasAI(): boolean {
-  return Boolean(OPENAI_API_KEY);
+  return Boolean(AI_API_KEY);
 }
 
+// Cache the liveness probe so /health and every copilot/reasoning hit don't each
+// pay a network round-trip to the model server.
+let probeCache: { at: number; ok: boolean } | null = null;
+const PROBE_TTL_MS = 15_000;
+
 /**
- * Reachability/config check. To avoid spending tokens on every health check we
- * do NOT call the chat endpoint here — a configured key is treated as "ready".
- * (A token-free `models.list()` ping is possible but unnecessary and adds
- * latency to every /health hit; presence of a key is the honest signal.)
+ * Real reachability check: pings the OpenAI-compatible `/models` endpoint with a
+ * short timeout so the "live" flag reflects whether the model server is actually
+ * up — not just that a URL is configured. Result cached for PROBE_TTL_MS.
  */
 export async function probeAI(): Promise<boolean> {
-  return hasAI();
+  if (!hasAI()) return false;
+  const now = Date.now();
+  if (probeCache && now - probeCache.at < PROBE_TTL_MS) return probeCache.ok;
+  let ok = false;
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 3500);
+    const res = await fetch(`${AI_BASE_URL}/models`, {
+      headers: { Authorization: `Bearer ${AI_API_KEY}` },
+      signal: ctrl.signal,
+    });
+    clearTimeout(t);
+    ok = res.ok;
+  } catch {
+    ok = false;
+  }
+  probeCache = { at: now, ok };
+  return ok;
 }
 
 const SYSTEM_PROMPT = `You are AutoFund AI's analyst copilot — a reasoning agent embedded in an adaptive on-chain crypto fund.
@@ -107,7 +138,7 @@ export async function* streamCopilotAnswer(
   try {
     const stream = await oai.chat.completions.create(
       {
-        model: OPENAI_MODEL,
+        model: AI_MODEL,
         stream: true,
         temperature: 0.45,
         max_tokens: 600,
@@ -143,6 +174,48 @@ function* heuristicAnswer(question: string, ctx: FundContext): Generator<string>
   for (const line of lines) if (line) yield line;
 }
 
+function heuristicBrief(ctx: FundContext): string {
+  const { summary, strategy, risk, latestDecision } = ctx;
+  const posture =
+    summary.riskScore >= 66 ? "defensive" : summary.riskScore >= 40 ? "balanced" : "risk-on";
+  const move = latestDecision ? ` Latest action: ${latestDecision.summary}.` : "";
+  return `The fund is running a ${posture} book at ${formatNav(summary.nav)} NAV, regime ${summary.riskRegime} (${summary.riskScore}/100), exposure capped at ${risk.exposureCap}%. Active strategy is ${strategy.active}.${move}`;
+}
+
+function formatNav(n: number): string {
+  return `$${n.toLocaleString()}`;
+}
+
+/**
+ * Wave 3 "AI Desk Brief": a short, live opening note on the fund's posture,
+ * generated by the model from the current state. Non-streaming, capped tokens.
+ * Degrades to a deterministic brief when the endpoint is down so the card
+ * always renders. `live` tells the UI whether a real model wrote it.
+ */
+export async function generateBrief(ctx: FundContext): Promise<{ text: string; live: boolean }> {
+  const oai = getClient();
+  if (!oai) return { text: heuristicBrief(ctx), live: false };
+  try {
+    const completion = await oai.chat.completions.create({
+      model: AI_MODEL,
+      temperature: 0.5,
+      max_tokens: 200,
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        {
+          role: "user",
+          content: `Current fund state:\n${renderState(ctx)}\n\nWrite a 2-3 sentence opening "desk brief" for the operator: the fund's current posture, the single most important risk or opportunity right now, and what the agent is inclined to do next. Plain text, no headers, no bullet characters.`,
+        },
+      ],
+    });
+    const text = completion.choices?.[0]?.message?.content?.trim() ?? "";
+    if (!text) return { text: heuristicBrief(ctx), live: false };
+    return { text, live: true };
+  } catch {
+    return { text: heuristicBrief(ctx), live: false };
+  }
+}
+
 const reasonCache = new Map<string, string[]>();
 const REASON_CACHE_MAX = 64;
 
@@ -160,10 +233,9 @@ export async function enrichDecisionReasons(decision: Decision, ctx: FundContext
 
   try {
     const completion = await oai.chat.completions.create({
-      model: OPENAI_MODEL,
+      model: AI_MODEL,
       temperature: 0.35,
       max_tokens: 320,
-      response_format: { type: "json_object" },
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         {
@@ -175,7 +247,11 @@ export async function enrichDecisionReasons(decision: Decision, ctx: FundContext
     const text: string = completion.choices?.[0]?.message?.content ?? "";
     let reasons: string[] = [];
     try {
-      const parsed = JSON.parse(text) as { reasons?: unknown };
+      // The model may wrap the JSON in prose — extract the first balanced object.
+      const start = text.indexOf("{");
+      const end = text.lastIndexOf("}");
+      const json = start !== -1 && end > start ? text.slice(start, end + 1) : text;
+      const parsed = JSON.parse(json) as { reasons?: unknown };
       if (Array.isArray(parsed.reasons)) {
         reasons = parsed.reasons
           .map((r) => String(r).replace(/^[-•·*\d.)\s]+/, "").trim())

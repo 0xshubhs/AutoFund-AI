@@ -16,7 +16,7 @@ export async function GET() {
     ok: true,
     data: {
       ai: {
-        provider: hasAI() ? "openai (configured)" : "none",
+        provider: hasAI() ? AI_PROVIDER.label : "none",
         model: AI_PROVIDER.model,
         baseUrl: AI_PROVIDER.baseUrl,
         configured: hasAI(),

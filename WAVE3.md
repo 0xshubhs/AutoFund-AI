@@ -1,4 +1,31 @@
-# Wave 3 — Build Phase II plan (NOT yet built)
+# Wave 3 — SHIPPED so far
+
+**Live AI, zero-config.** The copilot, decision-reason enrichment, and a new AI
+Desk Brief now run on a *real model out of the box* — a self-hosted vLLM server
+running `Qwen/Qwen3-VL-8B-Instruct` behind an OpenAI-compatible endpoint
+(`lib/ai.ts`). No key required for the demo. Everything is env-overridable
+(`OPENAI_BASE_URL` / `OPENAI_MODEL` / `OPENAI_API_KEY`, or the `AI_*` aliases) so
+the endpoint can be repointed or swapped for OpenAI proper.
+
+- **Real liveness probe.** `probeAI()` now pings the model server's `/models`
+  endpoint (short timeout, 15s cache) so the "live" flag on `/health` and the
+  `X-Copilot-Mode` header reflect whether the pod is actually up — not just that
+  a URL is configured. If the endpoint is down, every AI path degrades to the
+  deterministic heuristic, so the app never hard-fails.
+- **NEW — AI Desk Brief.** `/api/autofund/brief` generates a live 2-3 sentence
+  opening note on the fund's posture, top risk/opportunity, and next move, from
+  the current fund state. Cached server-side (~90s) and surfaced as a card on
+  `/dashboard`. Verified end-to-end against the live model.
+- **Health transparency.** `/api/autofund/health` reports the active provider
+  label + model + base URL + real liveness.
+
+Verified live: `X-Copilot-Mode: ai`, briefs grounded in the fund's real numbers.
+Ephemeral-endpoint caveat: RunPod proxy URLs rotate — set `OPENAI_BASE_URL` to
+the current endpoint (or an OpenAI key) for a permanent deployment.
+
+---
+
+# Wave 3 — Build Phase II plan (remaining, NOT yet built)
 
 Theme: from a single-user, testnet-and-dry-run agent to a custodial-grade,
 publishable financial primitive. Everything below is planned, not implemented.

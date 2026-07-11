@@ -1,5 +1,6 @@
 "use client";
 
+import AIBriefCard from "../components/AIBriefCard";
 import AutoFundChartCard from "../components/AutoFundChartCard";
 import AutoFundLayout from "../components/AutoFundLayout";
 import ChartPanel from "../components/ChartPanel";
@@ -73,6 +74,8 @@ export default function DashboardPage() {
           />
         </div>
       </section>
+
+      <AIBriefCard />
 
       <SectorHeatmap />
 
