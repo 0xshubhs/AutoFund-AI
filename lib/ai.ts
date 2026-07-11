@@ -1,19 +1,13 @@
-import OpenAI from "openai";
 import type { Decision, FundSummary, Holding, RiskBreakdown, StrategyState } from "./types";
 
-// AI copilot powered by an OpenAI-compatible Chat Completions endpoint.
-//
-// Wave 3 ships a LIVE default: a self-hosted vLLM server running
-// Qwen/Qwen3-VL-8B-Instruct behind a RunPod proxy. No key required — the demo
-// reasons with a real model out of the box. Everything is env-overridable so
-// the endpoint can be repointed (RunPod proxy URLs are ephemeral) or swapped
-// for OpenAI proper. If the endpoint is unreachable the module degrades to a
-// deterministic heuristic, so the app never hard-fails on a dead pod.
-// Hardcoded, single AI provider: the self-hosted vLLM server running
-// Qwen/Qwen3-VL-8B-Instruct. No env, no OpenAI — this endpoint only.
+// AI copilot over an OpenAI-compatible Chat Completions endpoint, called with
+// plain fetch (no SDK). Single hardcoded provider: the self-hosted vLLM server
+// running Qwen/Qwen3-VL-8B-Instruct. No env, no OpenAI package — this endpoint
+// only. If the endpoint is unreachable, every AI path degrades to a
+// deterministic heuristic, so the app never hard-fails.
 const AI_BASE_URL = "https://j197d3s4gy3ijy-8002.proxy.runpod.net/v1";
 const AI_MODEL = "Qwen/Qwen3-VL-8B-Instruct";
-// The vLLM endpoint ignores the key; a non-empty sentinel lets the client build.
+// The vLLM endpoint ignores the key; a non-empty sentinel is fine.
 const AI_API_KEY = "runpod-local";
 
 export const AI_PROVIDER = {
@@ -22,19 +16,78 @@ export const AI_PROVIDER = {
   label: `vLLM · ${AI_MODEL}`,
 };
 
-let client: OpenAI | null = null;
-function getClient(): OpenAI | null {
-  if (!AI_API_KEY) return null;
-  if (!client) {
-    client = new OpenAI({ apiKey: AI_API_KEY, baseURL: AI_BASE_URL });
+type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
+
+/** Non-streaming chat call. Returns the assistant text, or throws on error. */
+async function chatText(
+  messages: ChatMessage[],
+  opts: { temperature?: number; maxTokens?: number } = {},
+  signal?: AbortSignal,
+): Promise<string> {
+  const res = await fetch(`${AI_BASE_URL}/chat/completions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${AI_API_KEY}` },
+    body: JSON.stringify({
+      model: AI_MODEL,
+      temperature: opts.temperature ?? 0.4,
+      max_tokens: opts.maxTokens ?? 512,
+      messages,
+    }),
+    signal,
+  });
+  if (!res.ok) throw new Error(`vLLM ${res.status}`);
+  const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+  return json.choices?.[0]?.message?.content ?? "";
+}
+
+/** Streaming chat call. Yields plain-text deltas by parsing the SSE body. */
+async function* streamChat(
+  messages: ChatMessage[],
+  opts: { temperature?: number; maxTokens?: number } = {},
+  signal?: AbortSignal,
+): AsyncGenerator<string> {
+  const res = await fetch(`${AI_BASE_URL}/chat/completions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${AI_API_KEY}` },
+    body: JSON.stringify({
+      model: AI_MODEL,
+      stream: true,
+      temperature: opts.temperature ?? 0.45,
+      max_tokens: opts.maxTokens ?? 600,
+      messages,
+    }),
+    signal,
+  });
+  if (!res.ok || !res.body) throw new Error(`vLLM ${res.status}`);
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith("data:")) continue;
+      const data = trimmed.slice(5).trim();
+      if (data === "[DONE]") return;
+      try {
+        const parsed = JSON.parse(data) as { choices?: { delta?: { content?: string } }[] };
+        const delta = parsed.choices?.[0]?.delta?.content;
+        if (typeof delta === "string" && delta.length > 0) yield delta;
+      } catch {
+        // ignore keep-alive / malformed lines
+      }
+    }
   }
-  return client;
 }
 
 /**
- * Config check: is an AI endpoint wired at all? With the Wave 3 baked-in
- * default this is always true — liveness (is the pod actually up?) is answered
- * separately by probeAI().
+ * Config check: is an AI endpoint wired at all? With the hardcoded endpoint this
+ * is always true — liveness (is the pod actually up?) is answered by probeAI().
  */
 export function hasAI(): boolean {
   return Boolean(AI_API_KEY);
@@ -46,9 +99,8 @@ let probeCache: { at: number; ok: boolean } | null = null;
 const PROBE_TTL_MS = 15_000;
 
 /**
- * Real reachability check: pings the OpenAI-compatible `/models` endpoint with a
- * short timeout so the "live" flag reflects whether the model server is actually
- * up — not just that a URL is configured. Result cached for PROBE_TTL_MS.
+ * Real reachability check: pings the `/models` endpoint with a short timeout so
+ * the "live" flag reflects whether the model server is actually up. Cached.
  */
 export async function probeAI(): Promise<boolean> {
   if (!hasAI()) return false;
@@ -118,40 +170,23 @@ function renderState(ctx: FundContext): string {
 }
 
 /**
- * Streaming copilot answer. Streams plain-text deltas from OpenAI; on any error
- * (or no key) yields a clearly-labeled fallback note + the heuristic answer.
+ * Streaming copilot answer. Streams plain-text deltas from the model; on any
+ * error yields a clearly-labeled fallback note + the heuristic answer.
  */
 export async function* streamCopilotAnswer(
   question: string,
   ctx: FundContext,
   signal?: AbortSignal,
 ): AsyncIterable<string> {
-  const oai = getClient();
-  if (!oai) {
-    yield* heuristicAnswer(question, ctx);
-    return;
-  }
   try {
-    const stream = await oai.chat.completions.create(
-      {
-        model: AI_MODEL,
-        stream: true,
-        temperature: 0.45,
-        max_tokens: 600,
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          {
-            role: "user",
-            content: `Current fund state:\n${renderState(ctx)}\n\nOperator question: ${question}`,
-          },
-        ],
-      },
-      { signal },
+    yield* streamChat(
+      [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: `Current fund state:\n${renderState(ctx)}\n\nOperator question: ${question}` },
+      ],
+      { temperature: 0.45, maxTokens: 600 },
+      signal,
     );
-    for await (const chunk of stream) {
-      const delta = chunk.choices?.[0]?.delta?.content;
-      if (typeof delta === "string" && delta.length > 0) yield delta;
-    }
   } catch (err) {
     const msg = err instanceof Error ? err.message : "stream failed";
     yield `[AI fallback: ${msg}]\n`;
@@ -184,27 +219,23 @@ function formatNav(n: number): string {
 
 /**
  * Wave 3 "AI Desk Brief": a short, live opening note on the fund's posture,
- * generated by the model from the current state. Non-streaming, capped tokens.
- * Degrades to a deterministic brief when the endpoint is down so the card
- * always renders. `live` tells the UI whether a real model wrote it.
+ * generated by the model. Degrades to a deterministic brief when the endpoint
+ * is down so the card always renders. `live` tells the UI who wrote it.
  */
 export async function generateBrief(ctx: FundContext): Promise<{ text: string; live: boolean }> {
-  const oai = getClient();
-  if (!oai) return { text: heuristicBrief(ctx), live: false };
   try {
-    const completion = await oai.chat.completions.create({
-      model: AI_MODEL,
-      temperature: 0.5,
-      max_tokens: 200,
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        {
-          role: "user",
-          content: `Current fund state:\n${renderState(ctx)}\n\nWrite a 2-3 sentence opening "desk brief" for the operator: the fund's current posture, the single most important risk or opportunity right now, and what the agent is inclined to do next. Plain text, no headers, no bullet characters.`,
-        },
-      ],
-    });
-    const text = completion.choices?.[0]?.message?.content?.trim() ?? "";
+    const text = (
+      await chatText(
+        [
+          { role: "system", content: SYSTEM_PROMPT },
+          {
+            role: "user",
+            content: `Current fund state:\n${renderState(ctx)}\n\nWrite a 2-3 sentence opening "desk brief" for the operator: the fund's current posture, the single most important risk or opportunity right now, and what the agent is inclined to do next. Plain text, no headers, no bullet characters.`,
+          },
+        ],
+        { temperature: 0.5, maxTokens: 200 },
+      )
+    ).trim();
     if (!text) return { text: heuristicBrief(ctx), live: false };
     return { text, live: true };
   } catch {
@@ -216,31 +247,25 @@ const reasonCache = new Map<string, string[]>();
 const REASON_CACHE_MAX = 64;
 
 /**
- * Enriches a decision's reason bullets via OpenAI, requesting structured JSON
- * output (response_format json_object) so the shape is predictable. Falls back
- * to the decision's own deterministic reasons on any error or with no key.
+ * Enriches a decision's reason bullets via the model, requesting JSON so the
+ * shape is predictable. Falls back to the decision's own deterministic reasons
+ * on any error.
  */
 export async function enrichDecisionReasons(decision: Decision, ctx: FundContext): Promise<string[]> {
   const cached = reasonCache.get(decision.id);
   if (cached) return cached;
 
-  const oai = getClient();
-  if (!oai) return decision.reasons;
-
   try {
-    const completion = await oai.chat.completions.create({
-      model: AI_MODEL,
-      temperature: 0.35,
-      max_tokens: 320,
-      messages: [
+    const text = await chatText(
+      [
         { role: "system", content: SYSTEM_PROMPT },
         {
           role: "user",
           content: `Current fund state:\n${renderState(ctx)}\n\nThe agent just made this decision: "${decision.summary}" (confidence ${decision.confidence}%). Signal scores: ${decision.signals.map((s) => `${s.label} ${s.score}`).join(", ")}.\n\nReturn JSON of the form {"reasons": string[], "confidence": number} where reasons is 2-3 short one-sentence bullets (NO bullet characters) explaining WHY this decision makes sense given the signals and regime, and confidence is your 0-100 assessment.`,
         },
       ],
-    });
-    const text: string = completion.choices?.[0]?.message?.content ?? "";
+      { temperature: 0.35, maxTokens: 320 },
+    );
     let reasons: string[] = [];
     try {
       // The model may wrap the JSON in prose — extract the first balanced object.
@@ -255,7 +280,7 @@ export async function enrichDecisionReasons(decision: Decision, ctx: FundContext
           .slice(0, 3);
       }
     } catch {
-      // model ignored json_object — fall through to deterministic reasons
+      // model returned non-JSON — fall through to deterministic reasons
     }
     if (reasons.length === 0) return decision.reasons;
 
